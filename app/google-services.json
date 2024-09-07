@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "925201087785",
+    "firebase_url": "https://furfamily-7f3bc-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "furfamily-7f3bc",
+    "storage_bucket": "furfamily-7f3bc.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:925201087785:android:6bbfd1f72a0ceec0e38b38",
+        "android_client_info": {
+          "package_name": "com.example.furfamily"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "925201087785-vdpu5lgu1thdg3k0cjv7usq8h54gjm8o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.furfamily",
+            "certificate_hash": "3730a8d5703cd7316b9a87e668cb46c8bb318a96"
+          }
+        },
+        {
+          "client_id": "925201087785-4okdcf33jqicbfcl5o3avfb4co6s06pn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRXDCgt6thKoDBE8gr7XB92JjEnTMF7hQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "925201087785-4okdcf33jqicbfcl5o3avfb4co6s06pn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

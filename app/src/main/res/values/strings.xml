@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">FurFamily</string>
+    <string name="default_web_client_id">your-client-id-here</string>
+</resources>
