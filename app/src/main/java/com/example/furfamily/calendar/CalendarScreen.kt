@@ -2,7 +2,6 @@ package com.example.furfamily.calendar
 
 import android.annotation.SuppressLint
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,41 +26,39 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.furfamily.ViewModel
 import com.example.furfamily.getCurrentUserId
-import com.example.furfamily.health.HealthRecord
 import com.google.api.services.calendar.model.Event
-import com.google.firebase.database.ChildEventListener
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
 import java.time.LocalDate
 import java.time.YearMonth
 
+@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -85,51 +83,51 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
         viewModel.loadCalendarEvents()
     }
 
-    Column {
-        MonthView(
-            currentDate = currentDate,
-            onDaySelected = { date ->
-                currentDate = date  // Update the state when a new day is selected
-                viewModel.loadEventsForDate(date) // Load events for the selected date
-            },
-            onMonthChanged = { newDate ->
-                currentDate = newDate  // Update the state when month is changed
-            },
-            eventsDates = eventsDates  // Assuming your ViewModel prepares a list of dates with events
-        )
-        EventsList(calendarEvents)  // Display the list of events below the calendar
-        Button(onClick = { showCreateEvent = !showCreateEvent }) {
-            Text(if (showCreateEvent) "Hide Create Event" else "Show Create Event")
-        }
-        if (showCreateEvent) {
-            if (userId != null) {
-                CreateCalendarEvent(viewModel, userId, onEventCreated = {
-                    // Toggle off the create event UI
-                    showCreateEvent = false
-                })
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Event Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { showCreateEvent = !showCreateEvent }) {
+                        Icon(Icons.Filled.Add, contentDescription = "Create Event")
+                    }
+                }
+            )
+        },
+        content = { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp)
+                    .fillMaxSize()
+            ) {
+                MonthView(
+                    currentDate = currentDate,
+                    onDaySelected = { date ->
+                        currentDate = date  // Update the state when a new day is selected
+                        viewModel.loadEventsForDate(date) // Load events for the selected date
+                    },
+                    onMonthChanged = { newDate ->
+                        currentDate = newDate  // Update the state when month is changed
+                    },
+                    eventsDates = eventsDates  // Assuming your ViewModel prepares a list of dates with events
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                EventsList(calendarEvents)  // Display the list of events below the calendar
+            }
+            Button(onClick = { showCreateEvent = !showCreateEvent }) {
+                Text(if (showCreateEvent) "Hide Create Event" else "Show Create Event")
+            }
+            if (showCreateEvent) {
+                if (userId != null) {
+                    CreateCalendarEvent(viewModel, userId, onEventCreated = {
+                        // Toggle off the create event UI
+                        showCreateEvent = false
+                    })
+                }
             }
         }
-    }
-
-//    Column {
-//        MonthView(currentDate, { date ->
-//            currentDate = date
-//            viewModel.loadEventsForDate(date)
-//        }, { newDate ->
-//            currentDate = newDate
-//        })
-//        EventsList(calendarEvents)
-//    }
-}
-
-@Composable
-fun CalendarEventItem(event: Event) {
-    Column(modifier = Modifier.padding(8.dp)) {
-        Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
-        Text(text = "Start: ${event.start.dateTime ?: event.start.date}", style = MaterialTheme.typography.bodySmall)
-        Text(text = "End: ${event.end.dateTime ?: event.end.date}", style = MaterialTheme.typography.bodySmall)
-        Spacer(modifier = Modifier.height(8.dp))
-    }
+    )
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -153,7 +151,7 @@ fun MonthView(
             IconButton(onClick = { onMonthChanged(currentDate.minusMonths(1)) }) {
                 Icon(Icons.Filled.ArrowBack, "Previous Month")
             }
-            Text(text = yearMonth.toString(), style = MaterialTheme.typography.headlineMedium)
+            Text(text = yearMonth.toString(), style = MaterialTheme.typography.titleLarge)
             IconButton(onClick = { onMonthChanged(currentDate.plusMonths(1)) }) {
                 Icon(Icons.Filled.ArrowForward, "Next Month")
             }

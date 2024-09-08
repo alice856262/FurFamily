@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
@@ -59,10 +60,10 @@ fun HealthScreen(userId: String, navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Health Dashboard") },
+                title = { Text("Health Dashboard", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { navController.navigate("CreateHealthRecord") }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add Record")
+                        Icon(Icons.Filled.Add, contentDescription = "Add New Record")
                     }
                 }
             )
@@ -71,7 +72,7 @@ fun HealthScreen(userId: String, navController: NavController) {
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             // Line chart
@@ -79,6 +80,13 @@ fun HealthScreen(userId: String, navController: NavController) {
                 val lineDataSet = LineDataSet(lineEntries, "Weight")
                 lineDataSet.colors = ColorTemplate.COLORFUL_COLORS.toList()
                 val lineData = LineData(lineDataSet)
+
+                Text(
+                    text = "Weight Progress",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -89,37 +97,71 @@ fun HealthScreen(userId: String, navController: NavController) {
                             description.isEnabled = false
                             xAxis.position = XAxis.XAxisPosition.BOTTOM
                             xAxis.valueFormatter = IndexAxisValueFormatter(dateLabels)
-                            animateY(4000)
+                            animateY(1500)
+                            setTouchEnabled(true)
+                            setPinchZoom(true)
+                            axisRight.isEnabled = false
+                            axisLeft.setDrawGridLines(false)
+                            xAxis.setDrawGridLines(false)
                         }
                     }
                 )
             }
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Previous records
-            Column(
-                modifier = Modifier.padding(top = 16.dp)
-            ) {
-                Text(text = "Previous Health Record", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
+            // Previous records section
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                Text(
+                    text = "Previous Health Records",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
                 healthRecords.forEach { record ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            .padding(vertical = 6.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("${SimpleDateFormat("dd/MM/yyyy", Locale.US).format(record.entryDate)}")
-                            record.weight?.takeIf { it != 0f }?.let { Text("Weight: ${"%.1f".format(it)} kg") }
-                            record.temperature?.takeIf { it != 0f }?.let { Text("Body temperature: ${"%.1f".format(it)} °C") }
-                            record.rbc?.takeIf { it != 0f }?.let { Text("RBC: ${"%.1f".format(it)}") }
-                            record.wbc?.takeIf { it != 0f }?.let { Text("WBC: ${"%.1f".format(it)}") }
-                            record.plt?.takeIf { it != 0f }?.let { Text("PLT: ${it.toInt()}") }
-                            record.alb?.takeIf { it != 0f }?.let { Text("Alb (Albumin): ${"%.1f".format(it)}") }
-                            record.ast?.takeIf { it != 0f }?.let { Text("AST: ${it.toInt()}") }
-                            record.alt?.takeIf { it != 0f }?.let { Text("ALT: ${it.toInt()}") }
-                            record.bun?.takeIf { it != 0f }?.let { Text("BUN: ${it.toInt()}") }
-                            record.scr?.takeIf { it != 0f }?.let { Text("Scr (Serum creatinine): ${"%.1f".format(it)}") }
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(record.entryDate),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            record.weight?.takeIf { it != 0f }?.let {
+                                Text(text = "Weight: ${"%.1f".format(it)} kg", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.temperature?.takeIf { it != 0f }?.let {
+                                Text(text = "Body temperature: ${"%.1f".format(it)} °C", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.rbc?.takeIf { it != 0f }?.let {
+                                Text(text = "RBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.wbc?.takeIf { it != 0f }?.let {
+                                Text(text = "WBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.plt?.takeIf { it != 0f }?.let {
+                                Text(text = "PLT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.alb?.takeIf { it != 0f }?.let {
+                                Text(text = "Alb (Albumin): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.ast?.takeIf { it != 0f }?.let {
+                                Text(text = "AST: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.alt?.takeIf { it != 0f }?.let {
+                                Text(text = "ALT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.bun?.takeIf { it != 0f }?.let {
+                                Text(text = "BUN: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            record.scr?.takeIf { it != 0f }?.let {
+                                Text(text = "Scr (Serum creatinine): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
@@ -139,15 +181,14 @@ fun fetchHealthRecords(userId: String): SnapshotStateList<HealthRecord> {
                 val record = snapshot.getValue(HealthRecord::class.java)
                 record?.let { records.add(it) }
             }
+
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
                 val updatedRecord = snapshot.getValue(HealthRecord::class.java)
                 updatedRecord?.let {
-//                    val index = records.indexOfFirst { record -> record.recordId == it.recordId }
-//                    if (index != -1) {
-//                        records[index] = it
-//                    }
+                    // Update logic if necessary
                 }
             }
+
             override fun onChildRemoved(snapshot: DataSnapshot) {
                 val record = snapshot.getValue(HealthRecord::class.java)
                 record?.let { records.remove(it) }

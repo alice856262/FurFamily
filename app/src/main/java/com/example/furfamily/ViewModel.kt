@@ -9,6 +9,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.furfamily.calendar.CalendarEvent
+import com.example.furfamily.health.HealthRecord
+import com.example.furfamily.nutrition.Feeding
+import com.example.furfamily.nutrition.Food
 import com.example.furfamily.profile.UserProfile
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -401,9 +404,132 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         return DateTime(instant.toEpochMilli())
     }
 
-//    val allFoods: LiveData<List<Food>> = repository.allFoods.asLiveData()
-//    val allPersonalNutrition: LiveData<List<PersonalNutrition>> = repository.allPersonalNutrition.asLiveData()
-//    val retrofitResponse: MutableState<List<FoodAPI>> = mutableStateOf((emptyList()))
+    // Nutrition
+    private val _foodList = MutableLiveData<List<Food>>()
+    val foodList: LiveData<List<Food>> = _foodList
+
+    private val _latestWeight = MutableLiveData<Float?>()
+    val latestWeight: LiveData<Float?> = _latestWeight
+
+    private val _feedingDetails = MutableLiveData<Feeding>()
+    val feedingDetails: LiveData<Feeding> = _feedingDetails
+
+    init {
+        fetchLatestWeight()
+        loadFoodList()
+        fetchFeedingDetails()
+    }
+
+    // Function to load the food list from Firebase
+    fun loadFoodList() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val foodRef = FirebaseDatabase.getInstance().getReference("foods/$uid")
+
+        foodRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val foodListFromDb = mutableListOf<Food>()
+                for (foodSnapshot in snapshot.children) {
+                    val food = foodSnapshot.getValue(Food::class.java)
+                    val foodId = foodSnapshot.key // Get the key as foodId
+                    food?.let {
+                        it.foodId = foodId ?: ""  // Assign the foodId
+                        foodListFromDb.add(it)
+                    }
+                }
+                _foodList.postValue(foodListFromDb)
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("ViewModel", "Error loading food list: ${error.message}")
+            }
+        })
+    }
+
+    // Function to add a new food
+    fun addNewFood(food: Food) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        // Reference to the user's food node in Firebase
+        val foodRef = FirebaseDatabase.getInstance().getReference("foods/$userId")
+        val foodId = foodRef.push().key ?: throw IllegalStateException("Failed to get Firebase key")
+        // Create a map to save the food data
+        val foodMap = mapOf(
+            "name" to food.name,
+            "caloriesPer100g" to food.caloriesPer100g,
+            "waterContentPer100g" to food.waterContentPer100g,
+            "notes" to food.notes
+        )
+        // Save the new food to Firebase
+        foodRef.child(foodId).setValue(foodMap)
+            .addOnSuccessListener {
+                Log.d("Firebase", "Food saved successfully")
+                loadFoodList()  // Reload the food list from Firebase after saving
+            }
+            .addOnFailureListener {
+                Log.e("FirebaseError", "Error saving food: ${it.message}")
+            }
+    }
+
+    // Function to fetch the latest weight record
+    fun fetchLatestWeight() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        // Reference to the healthRecords node for the current user
+        val healthRecordsRef = FirebaseDatabase.getInstance().getReference("healthRecords/$userId")
+
+        // Query to get the latest health record based on `entryDate.time`
+        healthRecordsRef.orderByChild("entryDate/time").limitToLast(1)
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (snapshot.exists()) {
+                        Log.d("ViewModel", "Health records found: ${snapshot.childrenCount}")
+
+                        // Fetch the latest health record based on time
+                        snapshot.children.forEach { child ->
+                            val healthRecord = child.getValue(HealthRecord::class.java)
+                            if (healthRecord != null) {
+                                Log.d("ViewModel", "Latest health record: ${healthRecord.entryDate} - Weight: ${healthRecord.weight}")
+                                _latestWeight.postValue(healthRecord.weight)
+                            } else {
+                                Log.e("ViewModel", "Error parsing health record")
+                            }
+                        }
+                    } else {
+                        Log.d("ViewModel", "No health records found")
+                        _latestWeight.postValue(null)  // Handle the case where no weight is found
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("ViewModel", "Error fetching latest weight: ${error.message}")
+                }
+            })
+    }
+
+    // Example function to fetch feeding details (can be implemented later)
+    fun fetchFeedingDetails() {
+        // Fetch pet feeding details for calculations or other purposes
+    }
+
+    // Function to save feeding info to Firebase
+    fun saveFeeding(food: Food, amount: Float, notes: String, mealType: String) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$userId")
+        val feedingId = feedingRef.push().key ?: throw IllegalStateException("Failed to get Firebase key")
+        // Create a Feeding object using the updated data class
+        val feeding = Feeding(
+            foodId = food.foodId,
+            entryDate = Date(),
+            amount = amount,
+            notes = notes,
+            mealType = mealType
+        )
+        // Save the Feeding object to Firebase
+        feedingRef.child(feedingId).setValue(feeding)
+            .addOnSuccessListener {
+                Log.d("Firebase", "Feeding saved successfully")
+            }
+            .addOnFailureListener {
+                Log.e("FirebaseError", "Error saving feeding: ${it.message}")
+            }
+    }
 
     // User profile
     val _userProfile = MutableLiveData<UserProfile?>()
@@ -438,57 +564,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     fun setImageUri(uri: Uri) {
         _profileImageUri.postValue(uri)
     }
-//
-//    // Food
-//    fun insertFood(food: Food) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.insertFood(food)
-//    }
-//
-//    fun insertFoods(foodList: List<Food>) {
-//        viewModelScope.launch(Dispatchers.IO) {
-//            for (food in foodList) {
-//                repository.insertFood(food)
-//                Log.d(ContentValues.TAG, "Inserted food: ${food.name}")
-//            }
-//        }
-//    }
-//    fun updateFood(food: Food) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.updateFood(food)
-//    }
-//
-//    fun deleteFood(food: Food) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.deleteFood(food)
-//    }
-//
-//    // Personal Nutrition
-//    fun insertPersonalNutrition(personalNutrition: PersonalNutrition) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.insertPersonalNutrition(personalNutrition)
-//    }
-//
-//    fun updatePersonalNutrition(personalNutrition: PersonalNutrition) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.updatePersonalNutrition(personalNutrition)
-//    }
-//    fun deletePersonalNutrition(personalNutrition: PersonalNutrition) = viewModelScope.launch(Dispatchers.IO) {
-//        repository.deletePersonalNutrition(personalNutrition)
-//    }
-//    fun deleteAllPersonalNutrition() = viewModelScope.launch(Dispatchers.IO) {
-//        repository.deleteAllPersonalNutrition()
-//    }
-//
-//    fun getResponse(keyword:String) {
-//        viewModelScope.launch  {
-//            try {
-//                val responseReturned = repository.getResponse(keyword)
-//                Log.i("Response", "Response : $responseReturned")
-//                retrofitResponse.value = responseReturned
-//
-//            } catch (e: Exception) {
-//                Log.i("Error ", "Response failed : $e")
-//            }
-//        }
-//    }
 
-    // User Profile
     fun loadUserProfile(userId: String) {
         val userRef = dbRef.child("userProfiles").child(userId)
 

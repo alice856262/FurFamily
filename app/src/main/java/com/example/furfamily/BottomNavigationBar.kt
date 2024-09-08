@@ -25,6 +25,7 @@ import com.example.furfamily.calendar.CalendarScreen
 import com.example.furfamily.health.CreateHealthRecord
 import com.example.furfamily.health.HealthRecord
 import com.example.furfamily.health.HealthScreen
+import com.example.furfamily.nutrition.NutritionScreen
 import com.example.furfamily.profile.LoginScreen
 import com.example.furfamily.profile.ProfileSettingsScreen
 import com.example.furfamily.profile.RegistrationScreen
@@ -99,7 +100,7 @@ fun HomeScreen(viewModel: ViewModel) {
 
             /* Nutrition navigation tab */
             composable(Routes.Nutrition.value) {
-//                PersonalNutritionView(navController, viewModel)
+                NutritionScreen(viewModel)
             }
             composable(
                 route = "foodList/{category}",
