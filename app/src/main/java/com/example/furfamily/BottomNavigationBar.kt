@@ -25,6 +25,7 @@ import com.example.furfamily.calendar.CalendarScreen
 import com.example.furfamily.health.CreateHealthRecord
 import com.example.furfamily.health.HealthRecord
 import com.example.furfamily.health.HealthScreen
+import com.example.furfamily.nutrition.AddNewFood
 import com.example.furfamily.nutrition.NutritionScreen
 import com.example.furfamily.profile.LoginScreen
 import com.example.furfamily.profile.ProfileSettingsScreen
@@ -97,27 +98,16 @@ fun HomeScreen(viewModel: ViewModel) {
                     viewModel = viewModel
                 )
             }
-
-            /* Nutrition navigation tab */
             composable(Routes.Nutrition.value) {
-                NutritionScreen(viewModel)
+                NutritionScreen(viewModel, navController)
             }
-            composable(
-                route = "foodList/{category}",
-                arguments = listOf(navArgument("category") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val category = backStackEntry.arguments?.getString("category")
-//                NutritionListView(navController, viewModel, category ?: "breakfast")
-            }
-            composable(
-                route = "foodDetail/{foodName}",
-                arguments = listOf(navArgument("foodName") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val foodName = backStackEntry.arguments?.getString("foodName")
-//                val selectedFood = viewModel.allFoods.value?.find { it.name == foodName }
-//                if (selectedFood != null) {
-//                    NutritionFormView(navController = navController, food = selectedFood)
-//                }
+            composable(Routes.NewFood.value) {
+                AddNewFood(
+                    onDismiss = { navController.popBackStack() },
+                    onSave = { food -> viewModel.addNewFood(food) },
+                    viewModel = viewModel,
+                    navController = navController
+                )
             }
             composable(Routes.HealthScreen.value) {
                 val userId = getCurrentUserId()

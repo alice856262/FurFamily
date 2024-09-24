@@ -1,8 +1,13 @@
 package com.example.furfamily
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -10,6 +15,9 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.furfamily.calendar.CalendarEvent
 import com.example.furfamily.health.HealthRecord
+import com.example.furfamily.network.ChatRequest
+import com.example.furfamily.network.Message
+import com.example.furfamily.network.RetrofitInstance
 import com.example.furfamily.nutrition.Feeding
 import com.example.furfamily.nutrition.Food
 import com.example.furfamily.profile.UserProfile
@@ -35,11 +43,22 @@ import com.google.api.client.extensions.android.http.AndroidHttp
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.calendar.model.EventDateTime
+import com.google.firebase.Firebase
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.storage
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.GlobalScope
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.Month
 import java.time.ZoneId
+import android.util.Base64
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 class ViewModel(application: Application) : AndroidViewModel(application) {
     private val dbRef = FirebaseDatabase.getInstance().getReference()
@@ -453,8 +472,15 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         // Create a map to save the food data
         val foodMap = mapOf(
             "name" to food.name,
-            "caloriesPer100g" to food.caloriesPer100g,
-            "waterContentPer100g" to food.waterContentPer100g,
+            "ingredient" to food.ingredient,
+            "caloriesPerKg" to food.caloriesPerKg,
+            "size" to food.size,
+            "proteinPercentage" to food.proteinPercentage,
+            "fatPercentage" to food.fatPercentage,
+            "fiberPercentage" to food.fiberPercentage,
+            "moisturePercentage" to food.moisturePercentage,
+            "ashPercentage" to food.ashPercentage,
+            "feedingInfo" to food.feedingInfo,
             "notes" to food.notes
         )
         // Save the new food to Firebase
@@ -465,6 +491,39 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             }
             .addOnFailureListener {
                 Log.e("FirebaseError", "Error saving food: ${it.message}")
+            }
+    }
+
+    fun updateFood(food: Food) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val foodId = food.foodId
+        if (foodId.isBlank()) {
+            Log.e("ViewModel", "Invalid food ID")
+            return
+        }
+
+        val foodRef = FirebaseDatabase.getInstance().getReference("foods/$userId/$foodId")
+        val foodUpdates = mapOf(
+            "name" to food.name,
+            "ingredient" to food.ingredient,
+            "caloriesPerKg" to food.caloriesPerKg,
+            "size" to food.size,
+            "proteinPercentage" to food.proteinPercentage,
+            "fatPercentage" to food.fatPercentage,
+            "fiberPercentage" to food.fiberPercentage,
+            "moisturePercentage" to food.moisturePercentage,
+            "ashPercentage" to food.ashPercentage,
+            "feedingInfo" to food.feedingInfo,
+            "notes" to food.notes
+        )
+        // Update the food item in Firebase
+        foodRef.updateChildren(foodUpdates)
+            .addOnSuccessListener {
+                Log.d("Firebase", "Food updated successfully")
+                loadFoodList() // Reload the food list after updating
+            }
+            .addOnFailureListener {
+                Log.e("FirebaseError", "Error updating food: ${it.message}")
             }
     }
 
@@ -503,13 +562,171 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             })
     }
 
+    fun uploadImageToFirebase(uri: Uri, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: run {
+            onError("User not logged in")
+            return
+        }
+        val storageRef = FirebaseStorage.getInstance()
+            .getReference("uploads/$userId/${uri.lastPathSegment}")
+        storageRef.putFile(uri)
+            .addOnSuccessListener { taskSnapshot ->
+                taskSnapshot.metadata?.reference?.downloadUrl
+                    ?.addOnSuccessListener { downloadUri ->
+                        val imageUrl = downloadUri.toString()
+                        saveImageUriToDatabase(userId, imageUrl)
+
+                        // Return the image URL on success
+                        onSuccess(imageUrl)
+                    }
+                    ?.addOnFailureListener { exception ->
+                        onError("Failed to get download URL: ${exception.message}")
+                    }
+            }
+            .addOnFailureListener { exception ->
+                onError("Failed to upload image: ${exception.message}")
+            }
+    }
+
+    fun extractTextFromImage(context: Context, uri: Uri, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            // Convert URI to Bitmap
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(context.contentResolver, uri)
+                ImageDecoder.decodeBitmap(source)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            }
+            // Log the bitmap information
+            Log.d("extractTextFromImage", "Bitmap obtained with size: ${bitmap.width}x${bitmap.height}")
+            // Create an InputImage from the bitmap
+            val image = InputImage.fromBitmap(bitmap, 0)
+            // Initialize TextRecognizer
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            // Process the image for text recognition
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    Log.d("extractTextFromImage", "Text extraction successful. Text found: ${visionText.text}")
+                    // If there is text, pass it to the onSuccess callback
+                    if (visionText.text.isNotEmpty()) {
+                        onSuccess(visionText.text)
+                    } else {
+                        onSuccess("No text found in the image.")
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("extractTextFromImage", "Failed to process image for text: ${e.message}")
+                    onError("Failed to process image for text: ${e.message}")
+                }
+        } catch (e: Exception) {
+            Log.e("extractTextFromImage", "Failed to load image: ${e.message}")
+            onError("Failed to load image: ${e.message}")
+        }
+    }
+
+    fun sendTextToOpenAI(text: String, onSuccess: (Food) -> Unit, onError: (String) -> Unit) {
+        val requestBody = ChatRequest(
+            model = "gpt-4o", // or any other model you prefer
+            messages = listOf(
+                Message(role = "system",
+                    content = """
+                                  Please extract the following information from the provided text in JSON format: 
+                                  {
+                                    "name": "string",
+                                    "ingredient": "string",
+                                    "caloriesPerKg": float,
+                                    "feedingInfo": "string",
+                                    "proteinPercentage": float,
+                                    "fatPercentage": float,
+                                    "fiberPercentage": float,
+                                    "moisturePercentage": float,
+                                    "ashPercentage": float
+                                  }
+                                  Default for string is an empty string. Default for float is 0.0. 
+                                  Respond only with the JSON object.
+                              """.trimIndent()
+                ),
+                Message(role = "user", content = text)),
+            max_tokens = 500 // Adjust max tokens as needed
+        )
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val response = RetrofitInstance.api.getChatResponse(requestBody)
+                val result = response.choices.firstOrNull()?.message?.content ?: "No response"
+
+                // Clean the response to remove any non-JSON content
+                val cleanedResult = cleanJsonResponse(result)
+
+                // Attempt to parse the cleaned result into a Food object
+                val food = parseFoodFromResponse(cleanedResult)
+                if (food != null) {
+                    onSuccess(food)
+                } else {
+                    onError("Failed to parse food information from response.")
+                }
+            } catch (e: Exception) {
+                onError("Failed to get response from OpenAI: ${e.message}")
+            }
+        }
+    }
+
+    // Clean the JSON response by removing backticks and any non-JSON text
+    fun cleanJsonResponse(response: String): String {
+        return response.trim()
+            .replace("```json", "") // Remove ```json if it exists
+            .replace("```", "") // Remove closing ```
+            .replace("\n", "") // Remove newlines if necessary
+    }
+
+    // Parse the JSON response and create a Food object
+    fun parseFoodFromResponse(response: String): Food? {
+        return try {
+            // Clean the JSON response before parsing
+            val cleanedResponse = cleanJsonResponse(response)
+
+            // Log the cleaned response to see the exact data
+            Log.d("parseFoodFromResponse", "Cleaned Response: $cleanedResponse")
+
+            // Assuming the response is a JSON object in the format specified
+            val jsonObject = JSONObject(cleanedResponse)
+            val name = jsonObject.optString("name", "")
+            val ingredients = jsonObject.optString("ingredient", "") // Check the exact key here
+            val caloriesPerKg = jsonObject.optDouble("caloriesPerKg", 0.0).toFloat()
+            val feedingInfo = jsonObject.optString("feedingInfo", "")
+            val proteinPercentage = jsonObject.optDouble("proteinPercentage", 0.0).toFloat()
+            val fatPercentage = jsonObject.optDouble("fatPercentage", 0.0).toFloat()
+            val fiberPercentage = jsonObject.optDouble("fiberPercentage", 0.0).toFloat()
+            val moisturePercentage = jsonObject.optDouble("moisturePercentage", 0.0).toFloat()
+            val ashPercentage = jsonObject.optDouble("ashPercentage", 0.0).toFloat()
+
+            // Log the parsed ingredient to see if it's correct
+            Log.d("parseFoodFromResponse", "Parsed Ingredient: $ingredients")
+
+            Food(
+                name = name,
+                ingredient = ingredients,
+                caloriesPerKg = caloriesPerKg,
+                feedingInfo = feedingInfo,
+                proteinPercentage = proteinPercentage,
+                fatPercentage = fatPercentage,
+                fiberPercentage = fiberPercentage,
+                moisturePercentage = moisturePercentage,
+                ashPercentage = ashPercentage
+            )
+        } catch (e: JSONException) {
+            Log.e("parseFoodFromResponse", "Failed to parse response: ${e.message}")
+            null
+        }
+    }
+
     // Example function to fetch feeding details (can be implemented later)
     fun fetchFeedingDetails() {
         // Fetch pet feeding details for calculations or other purposes
     }
 
     // Function to save feeding info to Firebase
-    fun saveFeeding(food: Food, amount: Float, notes: String, mealType: String) {
+    fun saveFeeding(food: Food, amount: Float, mealTime: LocalDateTime, mealType: String, notes: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$userId")
         val feedingId = feedingRef.push().key ?: throw IllegalStateException("Failed to get Firebase key")
@@ -518,8 +735,9 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             foodId = food.foodId,
             entryDate = Date(),
             amount = amount,
-            notes = notes,
-            mealType = mealType
+            mealTime = mealTime,
+            mealType = mealType,
+            notes = notes
         )
         // Save the Feeding object to Firebase
         feedingRef.child(feedingId).setValue(feeding)
@@ -572,6 +790,11 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             override fun onDataChange(dataSnapshot: DataSnapshot) {
                 val userProfile = dataSnapshot.getValue(UserProfile::class.java)
                 _userProfile.postValue(userProfile)
+
+                // Check if profile image URL exists and set it to profileImageUri
+                userProfile?.profileImageUrl?.let { imageUrl ->
+                    setImageUri(Uri.parse(imageUrl))
+                }
             }
 
             override fun onCancelled(databaseError: DatabaseError) {

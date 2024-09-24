@@ -68,10 +68,10 @@ fun HealthScreen(userId: String, navController: NavController) {
                 }
             )
         }
-    ) { padding ->
+    ) { paddingValues ->
         Column(
             modifier = Modifier
-                .padding(padding)
+                .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -185,7 +185,6 @@ fun fetchHealthRecords(userId: String): SnapshotStateList<HealthRecord> {
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
                 val updatedRecord = snapshot.getValue(HealthRecord::class.java)
                 updatedRecord?.let {
-                    // Update logic if necessary
                 }
             }
 
@@ -195,7 +194,6 @@ fun fetchHealthRecords(userId: String): SnapshotStateList<HealthRecord> {
             }
 
             override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-                //
             }
 
             override fun onCancelled(error: DatabaseError) {

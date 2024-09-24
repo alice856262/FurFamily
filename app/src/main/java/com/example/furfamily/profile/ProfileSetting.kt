@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberImagePainter
@@ -89,6 +90,8 @@ fun ProfileSettingsScreen(navController: NavController, viewModel: ViewModel, us
     }
 
     val profileImageUri by viewModel.profileImageUri.observeAsState()
+    // Check if profile image URI is null
+    val profileImage = profileImageUri ?: userProfile?.profileImageUrl?.let { Uri.parse(it) }
 
     var firstName by remember { mutableStateOf(userProfile!!.firstName) }
     var editingFirstName by remember { mutableStateOf(false) }
@@ -133,7 +136,8 @@ fun ProfileSettingsScreen(navController: NavController, viewModel: ViewModel, us
     ) {
         Text(
             text = "Profile Settings",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .padding(top = 12.dp)
                 .padding(bottom = 12.dp)
@@ -150,7 +154,7 @@ fun ProfileSettingsScreen(navController: NavController, viewModel: ViewModel, us
                     modifier = Modifier.size(120.dp)
                 ) {
                     Image(
-                        painter = rememberImagePainter(profileImageUri),
+                        painter = rememberImagePainter(profileImage),
                         contentDescription = "Profile Picture",
                         modifier = Modifier
                             .fillMaxSize()
@@ -435,6 +439,7 @@ fun ProfileSettingsScreen(navController: NavController, viewModel: ViewModel, us
             ) { Text(snackbarMessage) }
         }
         Spacer(modifier = Modifier.height(12.dp))
+
         // Sign out
         val context = LocalContext.current
         OutlinedButton(

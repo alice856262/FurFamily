@@ -26,9 +26,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -119,11 +119,13 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
                 Text(if (showCreateEvent) "Hide Create Event" else "Show Create Event")
             }
             if (showCreateEvent) {
-                if (userId != null) {
-                    CreateCalendarEvent(viewModel, userId, onEventCreated = {
-                        // Toggle off the create event UI
-                        showCreateEvent = false
-                    })
+                userId?.let {
+                    CreateCalendarEvent(
+                        viewModel = viewModel,
+                        userId = it,
+                        onEventCreated = { showCreateEvent = false },
+                        onDismiss = { showCreateEvent = false }
+                    )
                 }
             }
         }
@@ -149,27 +151,28 @@ fun MonthView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = { onMonthChanged(currentDate.minusMonths(1)) }) {
-                Icon(Icons.Filled.ArrowBack, "Previous Month")
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Previous Month")
             }
             Text(text = yearMonth.toString(), style = MaterialTheme.typography.titleLarge)
             IconButton(onClick = { onMonthChanged(currentDate.plusMonths(1)) }) {
-                Icon(Icons.Filled.ArrowForward, "Next Month")
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, "Next Month")
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             for (day in daysOfWeek) {
-                Text(
-                    text = day,
+                Text(text = day,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
+                    textAlign = TextAlign.Center)
             }
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(daysInMonth + firstDayOfWeek - 1) { index ->
@@ -277,7 +280,9 @@ fun EventItem(event: Event) {
         .fillMaxWidth()
         .padding(8.dp)
         .clickable { /* Open event details or perform an action */ }) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(
+            modifier = Modifier.padding(8.dp)
+        ) {
             Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
             Text(text = "Start: ${event.start.dateTime ?: event.start.date}", style = MaterialTheme.typography.bodySmall)
             Text(text = "End: ${event.end.dateTime ?: event.end.date}", style = MaterialTheme.typography.bodySmall)

@@ -3,7 +3,7 @@ package com.example.furfamily.calendar
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,29 +19,40 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: () -> Unit) {
-    // Local state for event details
+fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: () -> Unit, onDismiss: () -> Unit) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var startTime by remember { mutableStateOf(LocalDateTime.now()) }
     var endTime by remember { mutableStateOf(LocalDateTime.now().plusHours(1)) }
     var location by remember { mutableStateOf("") }
 
-    LazyColumn {
-        item {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Calendar Event") },
+        text = {
             Column {
-                TextField(value = title, onValueChange = { title = it }, label = { Text("Title") })
+                TextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                )
                 TextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") })
+                    label = { Text("Description") },
+                )
                 DateTimePicker("Start Time", startTime) { startTime = it }
                 DateTimePicker("End Time", endTime) { endTime = it }
                 TextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("Location") })
-                Button(onClick = {
+                    label = { Text("Location") },
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
                     val event = CalendarEvent(
                         userId = userId,
                         title = title,
@@ -53,12 +64,18 @@ fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: ()
                     viewModel.createEvent(event) {
                         onEventCreated()  // Notify the screen to hide the create event section
                     }
-                }) {
-                    Text("Save Event")
-                }
+                },
+                enabled = title.isNotBlank() && startTime.isBefore(endTime) // Enable button if conditions are met
+            ){
+                Text("Save Event")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
-    }
+    )
 }
 
 @Composable
