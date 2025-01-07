@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 import java.util.Date
 
 data class Feeding(
+    val petId: String = "",
     val foodId: String = "",
     val entryDate: Date = Date(),
     val amount: Float = 0.0F,

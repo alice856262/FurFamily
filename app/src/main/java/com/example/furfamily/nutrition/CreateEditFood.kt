@@ -47,7 +47,12 @@ import com.example.furfamily.ViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddNewFood(onDismiss: () -> Unit, onSave: (Food) -> Unit, viewModel: ViewModel, navController: NavController) {
+fun AddNewFood(
+    onDismiss: () -> Unit,
+    onSave: (Food) -> Unit,
+    viewModel: ViewModel,
+    navController: NavController
+) {
     var name by remember { mutableStateOf("") }
     var ingredient by remember { mutableStateOf("") }
     var caloriesPerKg by remember { mutableStateOf(0.0F) }

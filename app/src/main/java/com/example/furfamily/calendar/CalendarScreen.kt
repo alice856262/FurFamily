@@ -2,6 +2,7 @@ package com.example.furfamily.calendar
 
 import android.annotation.SuppressLint
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,21 +69,37 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
     val userId = getCurrentUserId()
     val context = LocalContext.current
     val intentForUserResolution by viewModel.intentForUserResolution.observeAsState()
+    val calendarEvents by viewModel.calendarEventDates.observeAsState(emptyList())
+    val allEventsDates by viewModel.eventsDates.observeAsState(emptyList()) // Observe all events
+    val feedingEvents by viewModel.feedingEvents.observeAsState(emptyList())
+    var currentDate by remember { mutableStateOf(LocalDate.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) } // Default to current date
+    var eventsDates by remember { mutableStateOf(emptyList<LocalDate>()) } // Events for the displayed month
+    var showCreateEvent by remember { mutableStateOf(false) }
 
+    // Load data when userId is available
+    LaunchedEffect(userId) {
+        userId?.let {
+            viewModel.loadPetsProfile(it)
+            viewModel.loadCalendarEvents()
+            viewModel.loadEventsForDate(selectedDate)
+            viewModel.loadFeedingEventsForDate(selectedDate)
+        }
+    }
+
+    // Filter events for the current month
+    LaunchedEffect(currentDate, allEventsDates) {
+        val yearMonth = YearMonth.from(currentDate)
+        eventsDates = allEventsDates.filter { eventDate ->
+            YearMonth.from(eventDate) == yearMonth
+        }
+    }
+
+    // Handle intent for user resolution
     LaunchedEffect(intentForUserResolution) {
         intentForUserResolution?.let {
             context.startActivity(it)
         }
-    }
-
-    val calendarEvents by viewModel.calendarEvents.observeAsState(emptyList())
-    val eventsDates by viewModel.eventsDates.observeAsState(emptyList())
-    var currentDate by remember { mutableStateOf(LocalDate.now()) }
-    var showCreateEvent by remember { mutableStateOf(false) }
-
-    // Ensure calendar events are loaded when the screen is first displayed
-    LaunchedEffect(true) {
-        viewModel.loadCalendarEvents()
     }
 
     Scaffold(
@@ -101,30 +120,43 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
                     .padding(horizontal = 16.dp)
                     .fillMaxSize()
             ) {
+                // Month View
                 MonthView(
                     currentDate = currentDate,
+                    selectedDate = selectedDate,
+                    eventsDates = eventsDates, // Pass filtered events
                     onDaySelected = { date ->
-                        currentDate = date  // Update the state when a new day is selected
-                        viewModel.loadEventsForDate(date) // Load events for the selected date
+                        selectedDate = date // Update selected date
+                        viewModel.loadEventsForDate(date)
+                        viewModel.loadFeedingEventsForDate(date)
                     },
                     onMonthChanged = { newDate ->
-                        currentDate = newDate  // Update the state when month is changed
-                    },
-                    eventsDates = eventsDates  // Assuming your ViewModel prepares a list of dates with events
+                        currentDate = newDate // Update month
+                        selectedDate = null // Reset selected date
+                    }
                 )
+
                 Spacer(modifier = Modifier.height(16.dp))
-                EventsList(calendarEvents)  // Display the list of events below the calendar
-            }
-            Button(onClick = { showCreateEvent = !showCreateEvent }) {
-                Text(if (showCreateEvent) "Hide Create Event" else "Show Create Event")
-            }
-            if (showCreateEvent) {
-                userId?.let {
-                    CreateCalendarEvent(
-                        viewModel = viewModel,
-                        userId = it,
-                        onEventCreated = { showCreateEvent = false },
-                        onDismiss = { showCreateEvent = false }
+
+                // Display events for the selected date
+                if (selectedDate != null) {
+                    Text(
+                        text = "Events for $selectedDate",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    EventsList(calendarEvents)
+
+                    Text(
+                        text = "Feeding Records for $selectedDate",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    EventsList(feedingEvents)
+                } else {
+                    Text(
+                        text = "Select a date to view events.",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -136,9 +168,10 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
 @Composable
 fun MonthView(
     currentDate: LocalDate,
+    selectedDate: LocalDate?,
+    eventsDates: List<LocalDate>, // List of dates with events for the current month
     onDaySelected: (LocalDate) -> Unit,
-    onMonthChanged: (LocalDate) -> Unit,
-    eventsDates: List<LocalDate>
+    onMonthChanged: (LocalDate) -> Unit
 ) {
     val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
     val daysInMonth = remember(yearMonth) { yearMonth.lengthOfMonth() }
@@ -151,11 +184,11 @@ fun MonthView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = { onMonthChanged(currentDate.minusMonths(1)) }) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Previous Month")
+                Icon(Icons.Default.ArrowBack, "Previous Month")
             }
             Text(text = yearMonth.toString(), style = MaterialTheme.typography.titleLarge)
             IconButton(onClick = { onMonthChanged(currentDate.plusMonths(1)) }) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowForward, "Next Month")
+                Icon(Icons.Default.ArrowForward, "Next Month")
             }
         }
         Row(
@@ -163,10 +196,12 @@ fun MonthView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             for (day in daysOfWeek) {
-                Text(text = day,
+                Text(
+                    text = day,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center)
+                    textAlign = TextAlign.Center
+                )
             }
         }
         LazyVerticalGrid(
@@ -179,9 +214,13 @@ fun MonthView(
                 if (index >= firstDayOfWeek - 1) {
                     val day = index - firstDayOfWeek + 2
                     val date = LocalDate.of(currentDate.year, currentDate.monthValue, day)
-                    DayCell(day = day, date = date, currentDate = currentDate, hasEvent = eventsDates.contains(date)) {
-                        onDaySelected(date)
-                    }
+                    DayCell(
+                        day = day,
+                        date = date,
+                        isSelected = selectedDate == date,
+                        hasEvent = eventsDates.contains(date), // Highlight days with events
+                        onClick = { onDaySelected(date) }
+                    )
                 } else {
                     Spacer(modifier = Modifier.background(Color.Transparent))
                 }
@@ -192,78 +231,34 @@ fun MonthView(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun DayCell(day: Int, date: LocalDate, currentDate: LocalDate, hasEvent: Boolean, onClick: () -> Unit) {
+fun DayCell(day: Int, date: LocalDate, isSelected: Boolean, hasEvent: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(50))
             .clickable(onClick = onClick)
-            .border(BorderStroke(1.dp, if (day == currentDate.dayOfMonth) Color.Blue else Color.Gray), RoundedCornerShape(50))
-            .background(if (hasEvent) Color(0xFF6650a4) else Color.Transparent),
+            .background(
+                color = when {
+                    isSelected -> Color(0xFFFF6F61) // Selected day color
+                    hasEvent -> Color(0xFF81B29A) // Event day color
+                    else -> Color.Transparent
+                }
+            )
+            .border(
+                BorderStroke(
+                    2.dp,
+                    if (isSelected) Color(0xFF932020) else Color.Transparent
+                ),
+                RoundedCornerShape(50)
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = "$day",
-            color = if (hasEvent) Color.White else Color.Black)
+        Text(
+            text = day.toString(),
+            color = if (isSelected || hasEvent) Color.White else Color.Black
+        )
     }
 }
-
-//@RequiresApi(Build.VERSION_CODES.O)
-//@Composable
-//fun MonthView(currentDate: LocalDate, onDaySelected: (LocalDate) -> Unit, onMonthChanged: (LocalDate) -> Unit) {
-//    val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
-//    val daysInMonth = remember(yearMonth) { yearMonth.lengthOfMonth() }
-//    val firstDayOfWeek = remember(yearMonth) { yearMonth.atDay(1).dayOfWeek.value }
-//
-//    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-//        Row(verticalAlignment = Alignment.CenterVertically,
-//            horizontalArrangement = Arrangement.SpaceBetween) {
-//            IconButton(onClick = {
-//                onMonthChanged(currentDate.minusMonths(1))
-//            }) {
-//                Icon(Icons.Filled.ArrowBack, "Previous Month")
-//            }
-//            Text(text = yearMonth.toString(), style = MaterialTheme.typography.headlineMedium)
-//            IconButton(onClick = {
-//                onMonthChanged(currentDate.plusMonths(1))
-//            }) {
-//                Icon(Icons.Filled.ArrowForward, "Next Month")
-//            }
-//        }
-//        LazyVerticalGrid(
-//            columns = GridCells.Fixed(7),
-//            contentPadding = PaddingValues(8.dp),
-//            horizontalArrangement = Arrangement.spacedBy(4.dp),
-//            verticalArrangement = Arrangement.spacedBy(4.dp)
-//        ) {
-//            items(daysInMonth + firstDayOfWeek - 1) { index ->
-//                if (index >= firstDayOfWeek - 1) {
-//                    val day = index - firstDayOfWeek + 2
-//                    DayCell(day = day, currentDate = currentDate) {
-//                        onDaySelected(LocalDate.of(currentDate.year, currentDate.monthValue, day))
-//                    }
-//                } else {
-//                    Spacer(modifier = Modifier.background(Color.Transparent))
-//                }
-//            }
-//        }
-//    }
-//}
-//
-//@RequiresApi(Build.VERSION_CODES.O)
-//@Composable
-//fun DayCell(day: Int, currentDate: LocalDate, onClick: () -> Unit) {
-//    Box(
-//        modifier = Modifier
-//            .size(40.dp)
-//            .clip(RoundedCornerShape(50))
-//            .clickable(onClick = onClick)
-//            .border(BorderStroke(1.dp, if (day == currentDate.dayOfMonth) Color.Blue else Color.Gray), RoundedCornerShape(50))
-//            .background(if (day == currentDate.dayOfMonth) Color.LightGray else Color.Transparent),
-//        contentAlignment = Alignment.Center
-//    ) {
-//        Text(text = "$day")
-//    }
-//}
 
 @Composable
 fun EventsList(events: List<Event>) {

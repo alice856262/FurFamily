@@ -11,9 +11,6 @@ data class UserProfile(
     val selectedGender: String = "",
     val phone: String = "",
     val birthDate: Date = Date(),
-    val allowLocation: Boolean = true,
-    val allowActivityShare: Boolean = true,
-    val allowHealthDataShare: Boolean = true,
     val isGoogleUser: Boolean = false,
     var profileImageUrl: String = ""
 )

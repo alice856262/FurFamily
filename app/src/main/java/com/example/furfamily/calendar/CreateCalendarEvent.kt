@@ -3,8 +3,14 @@ package com.example.furfamily.calendar
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -13,18 +19,31 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.example.furfamily.ViewModel
+import com.example.furfamily.profile.Pet
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: () -> Unit, onDismiss: () -> Unit) {
+fun CreateCalendarEvent(
+    viewModel: ViewModel,
+    userId: String,
+    pets: List<Pet>,
+    onEventCreated: () -> Unit,
+    onDismiss: () -> Unit
+) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var startTime by remember { mutableStateOf(LocalDateTime.now()) }
     var endTime by remember { mutableStateOf(LocalDateTime.now().plusHours(1)) }
     var location by remember { mutableStateOf("") }
+    var selectedPet by remember { mutableStateOf<Pet?>(null) }
+    var isExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -48,6 +67,43 @@ fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: ()
                     onValueChange = { location = it },
                     label = { Text("Location") },
                 )
+
+                // Pet Dropdown for selecting petId
+                if (pets.isNotEmpty()) {
+                    ExposedDropdownMenuBox(expanded = isExpanded, onExpandedChange = { isExpanded = it }) {
+                        TextField(
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                                .focusProperties {
+                                    canFocus = false
+                                }
+                                .padding(bottom = 8.dp),
+                            readOnly = true,
+                            value = selectedPet?.name ?: "Select Pet",
+                            onValueChange = {},
+                            label = { Text("Pet") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) }
+                        )
+                        ExposedDropdownMenu(
+                            expanded = isExpanded,
+                            onDismissRequest = { isExpanded = false }
+                        ) {
+                            pets.forEach { pet ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(pet.name) },
+                                    onClick = {
+                                        selectedPet = pet
+                                        isExpanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text("No pets available", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
+                }
             }
         },
         confirmButton = {
@@ -55,6 +111,7 @@ fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: ()
                 onClick = {
                     val event = CalendarEvent(
                         userId = userId,
+                        petId = selectedPet?.petId ?: "",
                         title = title,
                         description = description,
                         startTime = startTime,
@@ -62,11 +119,11 @@ fun CreateCalendarEvent(viewModel: ViewModel, userId: String, onEventCreated: ()
                         location = location
                     )
                     viewModel.createEvent(event) {
-                        onEventCreated()  // Notify the screen to hide the create event section
+                        onEventCreated() // Notify the screen to hide the create event section
                     }
                 },
-                enabled = title.isNotBlank() && startTime.isBefore(endTime) // Enable button if conditions are met
-            ){
+                enabled = title.isNotBlank() && startTime.isBefore(endTime) && selectedPet != null // Enable button if conditions are met
+            ) {
                 Text("Save Event")
             }
         },

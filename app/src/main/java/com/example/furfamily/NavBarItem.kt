@@ -1,42 +1,39 @@
 package com.example.furfamily
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.furfamily.calendar.CalendarScreen
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 
-data class NavBarItem (
-    val label : String = "",
-    val icon : ImageVector = Icons.Filled.AddCircle,
-    val route : String = ""
+data class NavBarItem(
+    val label: String,
+    val icon: Painter, // Use Painter for custom icons
+    val route: String
 ) {
-    fun NavBarItems(): List<NavBarItem> {
-        return listOf(
-            NavBarItem(
-                label = "Calendar",
-                icon = Icons.Filled.DateRange,
-                route = Routes.CalendarScreen.value
-            ),
-            NavBarItem(
-                label = "Health",
-                icon = Icons.Filled.Add,
-                route = Routes.HealthScreen.value
-            ),
-            NavBarItem(
-                label = "Nutrition",
-                icon = Icons.Filled.CheckCircle,
-                route = Routes.Nutrition.value
-            ),
-            NavBarItem(
-                label = "Profile",
-                icon = Icons.Filled.Person,
-                route = Routes.Profile.value
+    companion object {
+        @Composable
+        fun NavBarItems(): List<NavBarItem> {
+            return listOf(
+                NavBarItem(
+                    label = "Calendar",
+                    icon = painterResource(R.drawable.calendar),
+                    route = Routes.CalendarScreen.value
+                ),
+                NavBarItem(
+                    label = "Health",
+                    icon = painterResource(R.drawable.health),
+                    route = Routes.HealthScreen.value
+                ),
+                NavBarItem(
+                    label = "Nutrition",
+                    icon = painterResource(R.drawable.nutrition),
+                    route = Routes.Nutrition.value
+                ),
+                NavBarItem(
+                    label = "Profile",
+                    icon = painterResource(R.drawable.profile),
+                    route = Routes.Profile.value
+                )
             )
-        )
+        }
     }
 }

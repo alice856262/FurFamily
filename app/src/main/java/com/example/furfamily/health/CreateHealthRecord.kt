@@ -19,6 +19,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +30,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -40,10 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
+import com.example.furfamily.profile.Pet
 import com.google.firebase.database.FirebaseDatabase
 import java.text.SimpleDateFormat
-import java.time.Instant
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -52,30 +54,33 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateHealthRecord(
-    HealthRecord: HealthRecord,
+    healthRecord: HealthRecord,
     userId: String,
+    pets: List<Pet>,
     onSaveMetrics: (HealthRecord) -> Unit,
     navController: NavController
 ) {
-    // Local state for form fields
     val calendar = Calendar.getInstance()
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = Instant.now().toEpochMilli()
+        initialSelectedDateMillis = healthRecord.entryDate.time
     )
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var entryDate by rememberSaveable { mutableStateOf(calendar.timeInMillis) }
+    var entryDate by rememberSaveable { mutableStateOf(healthRecord.entryDate.time) }
 
-    // Initialise states with a default value if null
-    var weight by rememberSaveable { mutableStateOf(HealthRecord.weight?: 0f) }
-    var temperature by rememberSaveable { mutableStateOf(HealthRecord.temperature?: 0f) }
-    var rbc by rememberSaveable { mutableStateOf(HealthRecord.rbc?: 0f) }
-    var wbc by rememberSaveable { mutableStateOf(HealthRecord.wbc?: 0f) }
-    var plt by rememberSaveable { mutableStateOf(HealthRecord.plt?: 0f) }
-    var alb by rememberSaveable { mutableStateOf(HealthRecord.alb?: 0f) }
-    var ast by rememberSaveable { mutableStateOf(HealthRecord.ast?: 0f) }
-    var alt by rememberSaveable { mutableStateOf(HealthRecord.alt?: 0f) }
-    var bun by rememberSaveable { mutableStateOf(HealthRecord.bun?: 0f) }
-    var scr by rememberSaveable { mutableStateOf(HealthRecord.scr?: 0f) }
+    // Local state for form fields
+    var selectedPet by remember { mutableStateOf<Pet?>(null) } // Track selected pet
+    var isPetDropdownExpanded by remember { mutableStateOf(false) }
+
+    var weight by rememberSaveable { mutableStateOf(healthRecord.weight ?: 0f) }
+    var temperature by rememberSaveable { mutableStateOf(healthRecord.temperature ?: 0f) }
+    var rbc by rememberSaveable { mutableStateOf(healthRecord.rbc ?: 0f) }
+    var wbc by rememberSaveable { mutableStateOf(healthRecord.wbc ?: 0f) }
+    var plt by rememberSaveable { mutableStateOf(healthRecord.plt ?: 0f) }
+    var alb by rememberSaveable { mutableStateOf(healthRecord.alb ?: 0f) }
+    var ast by rememberSaveable { mutableStateOf(healthRecord.ast ?: 0f) }
+    var alt by rememberSaveable { mutableStateOf(healthRecord.alt ?: 0f) }
+    var bun by rememberSaveable { mutableStateOf(healthRecord.bun ?: 0f) }
+    var scr by rememberSaveable { mutableStateOf(healthRecord.scr ?: 0f) }
 
     Scaffold(
         topBar = {
@@ -95,10 +100,48 @@ fun CreateHealthRecord(
                     .padding(paddingValues)
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(50.dp))
+                // Choose pet
+                ExposedDropdownMenuBox(
+                    expanded = isPetDropdownExpanded,
+                    onExpandedChange = { isPetDropdownExpanded = it }
+                ) {
+                    TextField(
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        readOnly = true,
+                        value = selectedPet?.name ?: "Choose a Pet",
+                        onValueChange = {},
+                        label = { Text("Pet") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPetDropdownExpanded)
+                        }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isPetDropdownExpanded,
+                        onDismissRequest = { isPetDropdownExpanded = false }
+                    ) {
+                        if (pets.isEmpty()) {
+                            Text("No pets available") // Handle empty pets list
+                        }
+                        pets.forEach { pet ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(pet.name) },
+                                onClick = {
+                                    selectedPet = pet
+                                    isPetDropdownExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -122,111 +165,68 @@ fun CreateHealthRecord(
                         confirmButton = {
                             TextButton(onClick = {
                                 showDatePicker = false
-                                entryDate = datePickerState.selectedDateMillis!!
+                                entryDate = datePickerState.selectedDateMillis ?: entryDate
                             }) { Text(text = "OK") }
                         },
                         dismissButton = {
-                            TextButton(onClick = {
-                                showDatePicker = false
-                            }) { Text(text = "Cancel") }
+                            TextButton(onClick = { showDatePicker = false }) { Text(text = "Cancel") }
                         }
                     ) { DatePicker(state = datePickerState) }
                 }
+
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Turn on the switch to record health metrics, or leave it off to skip.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                AdjustableAttribute(
-                    label = "Weight: ${"%.1f".format(weight)} kg",
-                    initialValue = weight,
-                    range = 0f..20f,
-                    onValueChange = { weight = it }
-                )
-                AdjustableAttribute(
-                    label = "Body Temperature: ${"%.1f".format(temperature)} °C",
-                    initialValue = temperature,
-                    range = 35f..45f,
-                    onValueChange = { temperature = it }
-                )
-                AdjustableAttribute(
-                    label = "RBC: ${"%.1f".format(rbc)}",
-                    initialValue = rbc,
-                    range = 0f..10f,
-                    onValueChange = { rbc = it }
-                )
-                AdjustableAttribute(
-                    label = "WBC: ${"%.1f".format(wbc)}",
-                    initialValue = wbc,
-                    range = 0f..10f,
-                    onValueChange = { wbc = it }
-                )
-                AdjustableAttribute(
-                    label = "PLT: ${plt.toInt()}",
-                    initialValue = plt,
-                    range = 0f..300f,
-                    onValueChange = { plt = it }
-                )
-                AdjustableAttribute(
-                    label = "Alb (Albumin): ${"%.1f".format(alb)}",
-                    initialValue = alb,
-                    range = 0f..10f,
-                    onValueChange = { alb = it }
-                )
-                AdjustableAttribute(
-                    label = "AST: ${ast.toInt()}",
-                    initialValue = ast,
-                    range = 0f..300f,
-                    onValueChange = { ast = it }
-                )
-                AdjustableAttribute(
-                    label = "ALT: ${alt.toInt()}",
-                    initialValue = alt,
-                    range = 0f..300f,
-                    onValueChange = { alt = it }
-                )
-                AdjustableAttribute(
-                    label = "BUN: ${bun.toInt()}",
-                    initialValue = bun,
-                    range = 0f..100f,
-                    onValueChange = { bun = it }
-                )
-                AdjustableAttribute(
-                    label = "Scr (Serum creatinine): ${"%.1f".format(scr)}",
-                    initialValue = scr,
-                    range = 0f..10f,
-                    onValueChange = { scr = it }
-                )
+
+                // Adjustable fields
+                AdjustableAttribute("Weight: ${"%.1f".format(weight)} kg", weight, 0f..20f) { weight = it }
+                AdjustableAttribute("Body Temperature: ${"%.1f".format(temperature)} °C", temperature, 35f..45f) { temperature = it }
+                AdjustableAttribute("RBC: ${"%.1f".format(rbc)}", rbc, 0f..10f) { rbc = it }
+                AdjustableAttribute("WBC: ${"%.1f".format(wbc)}", wbc, 0f..10f) { wbc = it }
+                AdjustableAttribute("PLT: ${plt.toInt()}", plt, 0f..300f) { plt = it }
+                AdjustableAttribute("Alb (Albumin): ${"%.1f".format(alb)}", alb, 0f..10f) { alb = it }
+                AdjustableAttribute("AST: ${ast.toInt()}", ast, 0f..300f) { ast = it }
+                AdjustableAttribute("ALT: ${alt.toInt()}", alt, 0f..300f) { alt = it }
+                AdjustableAttribute("BUN: ${bun.toInt()}", bun, 0f..100f) { bun = it }
+                AdjustableAttribute("Scr (Serum creatinine): ${"%.1f".format(scr)}", scr, 0f..10f) { scr = it }
+
                 Spacer(modifier = Modifier.height(20.dp))
+
+                // Save Button
                 Button(
                     onClick = {
-                        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return@Button
-                        val updatedRecord = HealthRecord(userId, Date(entryDate), weight, temperature, rbc, wbc, plt, alb, ast, alt, bun, scr)
+                        if (selectedPet == null) {
+                            // Handle case where no pet is selected
+                            return@Button
+                        }
+                        val record = HealthRecord(
+                            userId = userId,
+                            petId = selectedPet?.petId ?: "",
+                            entryDate = Date(entryDate),
+                            weight = weight,
+                            temperature = temperature,
+                            rbc = rbc,
+                            wbc = wbc,
+                            plt = plt,
+                            alb = alb,
+                            ast = ast,
+                            alt = alt,
+                            bun = bun,
+                            scr = scr
+                        )
 
-                        // Reference to the user-specific directory in the database
-                        val userRecordsRef =
-                            FirebaseDatabase.getInstance().getReference("healthRecords")
-                                .child(userId)
-
-                        // Generate a unique key for the new record under the specific user's directory
+                        val userRecordsRef = FirebaseDatabase.getInstance().getReference("healthRecords/$userId")
                         val recordKey = userRecordsRef.push().key
                         recordKey?.let {
-                            // Save the record under the user's directory with the generated key
-                            userRecordsRef.child(it).setValue(updatedRecord)
+                            userRecordsRef.child(it).setValue(record)
                                 .addOnSuccessListener {
-                                    onSaveMetrics(updatedRecord)  // Notify successful save
-                                    navController.popBackStack()  // Navigate back
+                                    onSaveMetrics(record)
+                                    navController.popBackStack()
                                 }
                                 .addOnFailureListener { exception ->
-                                    // Handle failure (e.g., show an error message)
-                                    Log.e(
-                                        "SaveHealthRecord",
-                                        "Failed to save health record: ${exception.message}"
-                                    )
+                                    Log.e("SaveHealthRecord", "Failed to save health record: ${exception.message}")
                                 }
                         }
                     },
+                    enabled = selectedPet != null, // Enable button only if a pet is selected
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Save Records")

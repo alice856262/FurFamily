@@ -4,6 +4,7 @@ import java.util.Date
 
 data class HealthRecord(
     val userId: String = "",
+    val petId: String? = null,
     val entryDate: Date = Date(),
     var weight: Float? = null,
     var temperature: Float? = null,

@@ -3,7 +3,6 @@ package com.example.furfamily
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
@@ -43,22 +42,22 @@ import com.google.api.client.extensions.android.http.AndroidHttp
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.calendar.model.EventDateTime
-import com.google.firebase.Firebase
 import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.storage
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.GlobalScope
-import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.Month
 import java.time.ZoneId
-import android.util.Base64
+import com.example.furfamily.profile.Pet
+import com.google.firebase.database.ChildEventListener
 import org.json.JSONException
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.time.ZoneOffset
+import androidx.lifecycle.MediatorLiveData
 
 class ViewModel(application: Application) : AndroidViewModel(application) {
     private val dbRef = FirebaseDatabase.getInstance().getReference()
@@ -124,9 +123,6 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                             selectedGender = "",
                             phone = "",
                             birthDate = Date(),
-                            allowLocation = false,
-                            allowActivityShare = false,
-                            allowHealthDataShare = false,
                             isGoogleUser = true,
                             profileImageUrl = "")
                         // Insert new user profile into Firebase and call onSuccess
@@ -170,8 +166,24 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     private val _calendarEvents = MutableLiveData<List<Event>>()
     val calendarEvents: LiveData<List<Event>> = _calendarEvents
 
-    private val _eventsDates = MutableLiveData<List<LocalDate>>()
+    private val _calendarEventDates = MutableLiveData<List<Event>>()
+    val calendarEventDates: LiveData<List<Event>> = _calendarEventDates
+
+    private val _eventsDates = MediatorLiveData<List<LocalDate>>()
     val eventsDates: LiveData<List<LocalDate>> = _eventsDates
+
+    init {
+        _eventsDates.addSource(_calendarEvents) { events ->
+            val localDates = events.mapNotNull { event ->
+                event.start?.dateTime?.let {
+                    Instant.ofEpochMilli(it.value).atZone(ZoneId.systemDefault()).toLocalDate()
+                } ?: event.start?.date?.let {
+                    LocalDate.parse(it.toString())
+                }
+            }.distinct()
+            _eventsDates.postValue(localDates)
+        }
+    }
 
     fun loadCalendarEvents() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -198,7 +210,6 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                     _calendarEvents.postValue(eventsResponse.items)
                 } else {
                     // User signed in with email/password, load events from Firebase
-                    Log.e("ViewModel 190", "HERE")
                     loadEventsFromFirebase()
                 }
             } catch (e: UserRecoverableAuthIOException) {
@@ -216,25 +227,24 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val newEvents = mutableListOf<Event>()
                 snapshot.children.forEach { event ->
-                    Log.d("FirebaseDebug", "Event key: ${event.key} | Event value: ${event.value}")
                     try {
                         val eventMap = event.value as? HashMap<*, *>
                         val userId = eventMap?.get("userId") as? String ?: ""
+                        val petId = eventMap?.get("petId") as? String ?: "" // Parse petId
                         val title = eventMap?.get("title") as? String ?: ""
                         val description = eventMap?.get("description") as? String
                         val location = eventMap?.get("location") as? String
 
-                        // Handling startTime and endTime
                         val startTimeMap = eventMap?.get("startTime") as HashMap<String, Any>
                         val endTimeMap = eventMap?.get("endTime") as HashMap<String, Any>
-
-                        // Use the function to parse start and end times
                         val startTime = parseLocalDateTimeFromMap(startTimeMap)
                         val endTime = parseLocalDateTimeFromMap(endTimeMap)
 
-                        // Create and add the event
-                        val event = CalendarEvent(userId, title, description, startTime, endTime, location)
-                        newEvents.add(convertCalendarEventToEvent(event))  // Assuming this function converts CalendarEvent to Event
+                        val event = CalendarEvent(userId, petId, title, description, startTime, endTime, location)
+                        newEvents.add(convertCalendarEventToEvent(event)) // Convert to Event
+                        snapshot.children.forEach { event ->
+                            Log.d("Debug", "Processing Firebase Event: ${event.value}")
+                        }
                     } catch (e: Exception) {
                         Log.e("DataProcessError", "Failed to process event data: ${e.message}")
                     }
@@ -243,7 +253,6 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             override fun onCancelled(error: DatabaseError) {
-                println("Error loading events: ${error.message}")
             }
         })
     }
@@ -303,7 +312,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                         .setSingleEvents(true)
                         .execute()
 
-                    _calendarEvents.postValue(eventsResponse.items)
+                    _calendarEventDates.postValue(eventsResponse.items)
                 } else {
                     // User signed in with email/password, load events from Firebase
                     loadEventsFromFirebaseForDate(date)
@@ -326,26 +335,26 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val eventMap = child.value as? HashMap<*, *>
                         val userId = eventMap?.get("userId") as? String ?: ""
+                        val petId = eventMap?.get("petId") as? String ?: "" // Parse petId
                         val title = eventMap?.get("title") as? String ?: ""
                         val description = eventMap?.get("description") as? String
                         val location = eventMap?.get("location") as? String
 
-                        // Handling startTime and endTime
                         val startTimeMap = eventMap?.get("startTime") as HashMap<String, Any>
                         val endTimeMap = eventMap?.get("endTime") as HashMap<String, Any>
                         val startTime = parseLocalDateTimeFromMap(startTimeMap)
                         val endTime = parseLocalDateTimeFromMap(endTimeMap)
 
-                        // Check if the event's date is the same as the provided date
+                        // Check if the event's date matches the provided date
                         if (startTime.toLocalDate() == date || endTime.toLocalDate() == date) {
-                            val event = CalendarEvent(userId, title, description, startTime, endTime, location)
-                            newEvents.add(convertCalendarEventToEvent(event))
+                            val event = CalendarEvent(userId, petId, title, description, startTime, endTime, location)
+                            newEvents.add(convertCalendarEventToEvent(event)) // Convert to Event
                         }
                     } catch (e: Exception) {
                         Log.e("DataProcessError", "Failed to process event data: ${e.message}")
                     }
                 }
-                _calendarEvents.postValue(newEvents)
+                _calendarEventDates.postValue(newEvents)
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -423,6 +432,93 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         return DateTime(instant.toEpochMilli())
     }
 
+    // Health Record
+    private val _pets = MutableLiveData<List<Pet>>()
+    val pets: LiveData<List<Pet>> = _pets
+
+    private val _healthRecords = MutableLiveData<List<HealthRecord>>()
+    val healthRecords: LiveData<List<HealthRecord>> = _healthRecords
+
+    // Fetch Pets
+    fun fetchPets(userId: String) {
+        val database = FirebaseDatabase.getInstance().getReference("pets/$userId")
+        val petsList = mutableListOf<Pet>()
+
+        val childEventListener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val pet = snapshot.getValue(Pet::class.java)
+                pet?.let { petsList.add(it) }
+                _pets.postValue(petsList) // Update LiveData
+            }
+
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                val updatedPet = snapshot.getValue(Pet::class.java)
+                updatedPet?.let {
+                    val index = petsList.indexOfFirst { it.petId == it.petId }
+                    if (index != -1) {
+                        petsList[index] = updatedPet
+                        _pets.postValue(petsList)
+                    }
+                }
+            }
+
+            override fun onChildRemoved(snapshot: DataSnapshot) {
+                val removedPet = snapshot.getValue(Pet::class.java)
+                removedPet?.let {
+                    petsList.remove(it)
+                    _pets.postValue(petsList)
+                }
+            }
+
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("DatabaseError", "Failed to fetch pets: ${error.message}")
+            }
+        }
+
+        database.addChildEventListener(childEventListener)
+    }
+
+    // Fetch Health Records
+    fun fetchHealthRecords(userId: String, petId: String?) {
+        val database = FirebaseDatabase.getInstance().getReference("healthRecords").child(userId)
+        val recordsList = mutableListOf<HealthRecord>()
+
+        val childEventListener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val record = snapshot.getValue(HealthRecord::class.java)
+                record?.takeIf { it.petId == petId }?.let { recordsList.add(it) }
+                _healthRecords.postValue(recordsList) // Update LiveData
+            }
+
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                val updatedRecord = snapshot.getValue(HealthRecord::class.java)
+                updatedRecord?.takeIf { it.petId == petId }?.let {
+                    val index = recordsList.indexOfFirst { it.entryDate == it.entryDate }
+                    if (index != -1) {
+                        recordsList[index] = updatedRecord
+                        _healthRecords.postValue(recordsList)
+                    }
+                }
+            }
+
+            override fun onChildRemoved(snapshot: DataSnapshot) {
+                val removedRecord = snapshot.getValue(HealthRecord::class.java)
+                removedRecord?.let {
+                    recordsList.remove(it)
+                    _healthRecords.postValue(recordsList)
+                }
+            }
+
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("DatabaseError", "Failed to fetch health records: ${error.message}")
+            }
+        }
+
+        database.addChildEventListener(childEventListener)
+    }
+
     // Nutrition
     private val _foodList = MutableLiveData<List<Food>>()
     val foodList: LiveData<List<Food>> = _foodList
@@ -430,13 +526,12 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     private val _latestWeight = MutableLiveData<Float?>()
     val latestWeight: LiveData<Float?> = _latestWeight
 
-    private val _feedingDetails = MutableLiveData<Feeding>()
-    val feedingDetails: LiveData<Feeding> = _feedingDetails
+    private val _feedingEvents = MutableLiveData<List<Event>>()
+    val feedingEvents: LiveData<List<Event>> = _feedingEvents
 
     init {
         fetchLatestWeight()
         loadFoodList()
-        fetchFeedingDetails()
     }
 
     // Function to load the food list from Firebase
@@ -574,7 +669,12 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                 taskSnapshot.metadata?.reference?.downloadUrl
                     ?.addOnSuccessListener { downloadUri ->
                         val imageUrl = downloadUri.toString()
-                        saveImageUriToDatabase(userId, imageUrl)
+                        val databaseReference = FirebaseDatabase.getInstance().getReference("userProfiles/$userId/profileImageUrl")
+                        databaseReference.setValue(imageUrl).addOnSuccessListener {
+                            Log.d("DatabaseUpdate", "Profile image URL successfully saved to database.")
+                        }.addOnFailureListener {
+                            Log.e("DatabaseError", "Failed to save profile image URL to database.", it)
+                        }
 
                         // Return the image URL on success
                         onSuccess(imageUrl)
@@ -720,18 +820,71 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Example function to fetch feeding details (can be implemented later)
-    fun fetchFeedingDetails() {
-        // Fetch pet feeding details for calculations or other purposes
+    // Function to fetch feeding details
+    fun loadFeedingEventsForDate(date: LocalDate) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$uid")
+        val startOfDay = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val endOfDay = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+        feedingRef.orderByChild("entryDate/time")
+            .startAt(startOfDay.toDouble())
+            .endAt(endOfDay.toDouble())
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val feedingEvents = mutableListOf<Event>()
+                    for (childSnapshot in snapshot.children) {
+                        val feedingMap = childSnapshot.value as? Map<*, *>
+                        feedingMap?.let {
+                            val foodId = it["foodId"] as? String ?: ""
+                            val petId = it["petId"] as? String ?: "" // Parse petId
+                            val entryDate = (it["entryDate"] as? Map<*, *>)?.get("time") as? Long
+                                ?: System.currentTimeMillis()
+                            val amount = (it["amount"] as? Double)?.toFloat() ?: 0.0F
+                            val mealType = it["mealType"] as? String ?: ""
+                            val notes = it["notes"] as? String ?: ""
+                            val mealTime = LocalDateTime.ofInstant(
+                                Instant.ofEpochMilli(entryDate),
+                                ZoneId.systemDefault()
+                            )
+
+                            val feeding = Feeding(
+                                foodId = foodId,
+                                entryDate = Date(entryDate),
+                                amount = amount,
+                                mealTime = mealTime,
+                                mealType = mealType,
+                                notes = notes
+                            )
+
+                            val event = CalendarEvent(
+                                userId = uid,
+                                petId = petId,
+                                title = "Feeding: ${feeding.mealType}",
+                                description = feeding.notes,
+                                startTime = feeding.mealTime,
+                                endTime = feeding.mealTime.plusHours(1)
+                            )
+                            feedingEvents.add(convertCalendarEventToEvent(event)) // Convert to Event
+                        }
+                    }
+                    _feedingEvents.postValue(feedingEvents)
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("FirebaseError", "Failed to load feeding events: ${error.message}")
+                }
+            })
     }
 
     // Function to save feeding info to Firebase
-    fun saveFeeding(food: Food, amount: Float, mealTime: LocalDateTime, mealType: String, notes: String) {
+    fun saveFeeding(pet: Pet, food: Food, amount: Float, mealTime: LocalDateTime, mealType: String, notes: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$userId")
         val feedingId = feedingRef.push().key ?: throw IllegalStateException("Failed to get Firebase key")
         // Create a Feeding object using the updated data class
         val feeding = Feeding(
+            petId = pet.petId,
             foodId = food.foodId,
             entryDate = Date(),
             amount = amount,
@@ -749,38 +902,82 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    // User profile
+    // Pet and User profile
+    private val _petProfileImages = MutableLiveData<Map<String, Uri>>()
+    val petProfileImages: LiveData<Map<String, Uri>> = _petProfileImages
+
+    private val _selectedPet = MutableLiveData<Pet?>()
+    val selectedPet: LiveData<Pet?> = _selectedPet
+
     val _userProfile = MutableLiveData<UserProfile?>()
     val userProfile: MutableLiveData<UserProfile?> = _userProfile
 
-    private val _profileImageUri = MutableLiveData<Uri>()
-    val profileImageUri: LiveData<Uri> = _profileImageUri
+    private val _userProfileImageUri = MutableLiveData<Uri>()
+    val userProfileImageUri: LiveData<Uri> = _userProfileImageUri
 
-    fun uploadImageToStorage(imageUri: Uri) {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val storageRef = FirebaseStorage.getInstance().getReference("uploads/$userId/${imageUri.lastPathSegment}")
-        storageRef.putFile(imageUri).addOnSuccessListener {
-            it.metadata?.reference?.downloadUrl?.addOnSuccessListener { uri ->
-                val imageUrl = uri.toString()
-                saveImageUriToDatabase(userId, imageUrl)
-                setImageUri(uri)
+    fun loadPetsProfile(userId: String) {
+        val petsRef = FirebaseDatabase.getInstance().getReference("pets/$userId")
+        Log.d("Debug", "Current User ID: $userId")
+
+        petsRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(datasnapshot: DataSnapshot) {
+                val petsList = datasnapshot.children.mapNotNull { it.getValue(Pet::class.java) }
+                _pets.postValue(petsList)
+
+                // Create a map of petId to profileImageUri
+                val petImagesMap = petsList.associate { pet ->
+                    pet.petId to Uri.parse(pet.profileImageUrl)
+                }
+                _petProfileImages.postValue(petImagesMap)
             }
-        }.addOnFailureListener {
-            Log.e("Upload", "Upload failed", it)
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("loadPetsProfile", "Failed to load pets: ${error.message}")
+            }
+        })
+    }
+
+    fun uploadPetImage(userId: String, petId: String, uri: Uri, onImageUploaded: (String) -> Unit) {
+        uploadImageToFirebase(
+            uri = uri,
+            onSuccess = { imageUrl ->
+                // Update the pet's profile image URL in Firebase Realtime Database
+                val databaseReference = FirebaseDatabase.getInstance()
+                    .getReference("pets/$userId/$petId/profileImageUrl")
+                databaseReference.setValue(imageUrl)
+                    .addOnSuccessListener {
+                        Log.d("PetImageUpload", "Pet profile image URL successfully saved for petId: $petId")
+                        onImageUploaded(imageUrl) // Pass the image URL back to the composable
+                    }
+                    .addOnFailureListener { exception ->
+                        Log.e("PetImageUpload", "Failed to save pet image URL for petId: $petId", exception)
+                    }
+            },
+            onError = { error ->
+                Log.e("PetImageUpload", "Error uploading pet image for petId: $petId: $error")
+            }
+        )
+    }
+
+    fun addPet(userId: String, pet: Pet) {
+        val petsRef = FirebaseDatabase.getInstance().getReference("pets/$userId")
+        val petId = pet.petId
+        val petWithId = pet.copy(petId = petId)  // Ensure `petId` is set in the pet object
+
+        petsRef.child(petId).setValue(petWithId).addOnSuccessListener {
+            Log.d("AddPet", "Pet successfully added: ${petWithId.petId}")
+        }.addOnFailureListener { exception ->
+            Log.e("AddPet", "Failed to add pet", exception)
         }
     }
 
-    fun saveImageUriToDatabase(userId: String, imageUrl: String) {
-        val databaseReference = FirebaseDatabase.getInstance().getReference("userProfiles/$userId/profileImageUrl")
-        databaseReference.setValue(imageUrl).addOnSuccessListener {
-            Log.d("DatabaseUpdate", "Profile image URL successfully saved to database.")
-        }.addOnFailureListener {
-            Log.e("DatabaseError", "Failed to save profile image URL to database.", it)
-        }
+    fun updatePet(userId: String, pet: Pet) {
+        val petsRef = FirebaseDatabase.getInstance().getReference("pets/$userId")
+        petsRef.child(pet.petId).setValue(pet)
     }
 
-    fun setImageUri(uri: Uri) {
-        _profileImageUri.postValue(uri)
+    fun setSelectedPet(pet: Pet?) {
+        _selectedPet.value = pet
     }
 
     fun loadUserProfile(userId: String) {
@@ -791,10 +988,10 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                 val userProfile = dataSnapshot.getValue(UserProfile::class.java)
                 _userProfile.postValue(userProfile)
 
-                // Check if profile image URL exists and set it to profileImageUri
-                userProfile?.profileImageUrl?.let { imageUrl ->
-                    setImageUri(Uri.parse(imageUrl))
-                }
+//                // Check if profile image URL exists and set it to profileImageUri
+//                userProfile?.profileImageUrl?.let { imageUrl ->
+//                    setImageUri(Uri.parse(imageUrl))
+//                }
             }
 
             override fun onCancelled(databaseError: DatabaseError) {

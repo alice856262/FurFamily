@@ -64,7 +64,7 @@ fun RegistrationScreen(
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
     var passwordError by rememberSaveable { mutableStateOf("") }
-    val gender = listOf("Male", "Female")
+    val gender = listOf("Male", "Female", "Other")
     var isExpanded by rememberSaveable { mutableStateOf(false) }
     var selectedGender by rememberSaveable { mutableStateOf(gender[0]) }
     var phone by rememberSaveable { mutableStateOf("") }
@@ -286,9 +286,6 @@ fun createUserWithEmailPassword(firstName: String, lastName: String, email: Stri
                     selectedGender = selectedGender,
                     phone = phone,
                     birthDate = birthDate,
-                    allowLocation = false,
-                    allowActivityShare = false,
-                    allowHealthDataShare = false,
                     profileImageUrl = ""
                 )
                 viewModel.insertUser(userProfile)
