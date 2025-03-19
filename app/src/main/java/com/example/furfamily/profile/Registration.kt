@@ -211,9 +211,10 @@ fun RegistrationScreen(
                     .height(46.dp)
             ) { Text(text = "Enter Date of Birth") }
             Spacer(modifier = Modifier.width(12.dp))
-            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT)
+            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
             Text(
                 text = "${formatter.format(Date(birthDate))}",
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
         }

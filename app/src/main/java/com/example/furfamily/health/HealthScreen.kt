@@ -215,7 +215,7 @@ fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavControl
                                 modifier = Modifier.padding(16.dp)
                             ) {
                                 Text(
-                                    text = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(record.entryDate),
+                                    text = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(record.entryDate),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold
                                 )

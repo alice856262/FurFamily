@@ -4,16 +4,21 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.graphics.ImageDecoder
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.furfamily.calendar.CalendarEvent
 import com.example.furfamily.health.HealthRecord
+import com.example.furfamily.map.PlaceTag
 import com.example.furfamily.network.ChatRequest
 import com.example.furfamily.network.Message
 import com.example.furfamily.network.RetrofitInstance
@@ -52,12 +57,21 @@ import java.time.LocalDateTime
 import java.time.Month
 import java.time.ZoneId
 import com.example.furfamily.profile.Pet
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.net.FetchPlaceRequest
+import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.firebase.database.ChildEventListener
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.tasks.await
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONException
 import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneOffset
-import androidx.lifecycle.MediatorLiveData
+import java.util.Locale
 
 class ViewModel(application: Application) : AndroidViewModel(application) {
     private val dbRef = FirebaseDatabase.getInstance().getReference()
@@ -526,8 +540,8 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     private val _latestWeight = MutableLiveData<Float?>()
     val latestWeight: LiveData<Float?> = _latestWeight
 
-    private val _feedingEvents = MutableLiveData<List<Event>>()
-    val feedingEvents: LiveData<List<Event>> = _feedingEvents
+    private val _feedingEvents = MutableLiveData<List<Feeding>>()
+    val feedingEvents: LiveData<List<Feeding>> = _feedingEvents
 
     init {
         fetchLatestWeight()
@@ -558,6 +572,27 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         })
     }
 
+    // Fetch Food Detail by ID
+    fun getFoodById(foodId: String, onResult: (Food?) -> Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        val foodRef = FirebaseDatabase.getInstance().getReference("foods/$uid/$foodId")
+
+        foodRef.get()
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
+                    val food = snapshot.getValue(Food::class.java)
+                    onResult(food)
+                } else {
+                    onResult(null) // No food found
+                }
+            }
+            .addOnFailureListener { exception ->
+                Log.e("Firebase", "Error fetching food: ${exception.message}")
+                onResult(null)
+            }
+    }
+
     // Function to add a new food
     fun addNewFood(food: Food) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -567,6 +602,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         // Create a map to save the food data
         val foodMap = mapOf(
             "name" to food.name,
+            "category" to food.category,
             "ingredient" to food.ingredient,
             "caloriesPerKg" to food.caloriesPerKg,
             "size" to food.size,
@@ -575,8 +611,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             "fiberPercentage" to food.fiberPercentage,
             "moisturePercentage" to food.moisturePercentage,
             "ashPercentage" to food.ashPercentage,
-            "feedingInfo" to food.feedingInfo,
-            "notes" to food.notes
+            "feedingInfo" to food.feedingInfo
         )
         // Save the new food to Firebase
         foodRef.child(foodId).setValue(foodMap)
@@ -600,6 +635,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         val foodRef = FirebaseDatabase.getInstance().getReference("foods/$userId/$foodId")
         val foodUpdates = mapOf(
             "name" to food.name,
+            "category" to food.category,
             "ingredient" to food.ingredient,
             "caloriesPerKg" to food.caloriesPerKg,
             "size" to food.size,
@@ -608,8 +644,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             "fiberPercentage" to food.fiberPercentage,
             "moisturePercentage" to food.moisturePercentage,
             "ashPercentage" to food.ashPercentage,
-            "feedingInfo" to food.feedingInfo,
-            "notes" to food.notes
+            "feedingInfo" to food.feedingInfo
         )
         // Update the food item in Firebase
         foodRef.updateChildren(foodUpdates)
@@ -619,6 +654,25 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             }
             .addOnFailureListener {
                 Log.e("FirebaseError", "Error updating food: ${it.message}")
+            }
+    }
+
+    fun deleteFood(food: Food) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val foodId = food.foodId
+        if (foodId.isBlank()) {
+            Log.e("ViewModel", "Invalid food ID")
+            return
+        }
+
+        val foodRef = FirebaseDatabase.getInstance().getReference("foods/$userId/$foodId")
+        foodRef.removeValue()
+            .addOnSuccessListener {
+                Log.d("Firebase", "Food deleted successfully")
+                loadFoodList() // Reload the food list after deletion
+            }
+            .addOnFailureListener { exception ->
+                Log.e("FirebaseError", "Error deleting food: ${exception.message}")
             }
     }
 
@@ -782,10 +836,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     // Parse the JSON response and create a Food object
     fun parseFoodFromResponse(response: String): Food? {
         return try {
-            // Clean the JSON response before parsing
             val cleanedResponse = cleanJsonResponse(response)
-
-            // Log the cleaned response to see the exact data
             Log.d("parseFoodFromResponse", "Cleaned Response: $cleanedResponse")
 
             // Assuming the response is a JSON object in the format specified
@@ -832,41 +883,57 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             .endAt(endOfDay.toDouble())
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    val feedingEvents = mutableListOf<Event>()
+                    val feedingEvents = mutableListOf<Feeding>()
+
                     for (childSnapshot in snapshot.children) {
-                        val feedingMap = childSnapshot.value as? Map<*, *>
-                        feedingMap?.let {
-                            val foodId = it["foodId"] as? String ?: ""
-                            val petId = it["petId"] as? String ?: "" // Parse petId
-                            val entryDate = (it["entryDate"] as? Map<*, *>)?.get("time") as? Long
-                                ?: System.currentTimeMillis()
-                            val amount = (it["amount"] as? Double)?.toFloat() ?: 0.0F
-                            val mealType = it["mealType"] as? String ?: ""
-                            val notes = it["notes"] as? String ?: ""
-                            val mealTime = LocalDateTime.ofInstant(
-                                Instant.ofEpochMilli(entryDate),
-                                ZoneId.systemDefault()
-                            )
+                        val feedingMap = childSnapshot.value as? Map<*, *> ?: continue
 
-                            val feeding = Feeding(
-                                foodId = foodId,
-                                entryDate = Date(entryDate),
-                                amount = amount,
-                                mealTime = mealTime,
-                                mealType = mealType,
-                                notes = notes
-                            )
-
-                            val event = CalendarEvent(
-                                userId = uid,
-                                petId = petId,
-                                title = "Feeding: ${feeding.mealType}",
-                                description = feeding.notes,
-                                startTime = feeding.mealTime,
-                                endTime = feeding.mealTime.plusHours(1)
-                            )
-                            feedingEvents.add(convertCalendarEventToEvent(event)) // Convert to Event
+                        val mealTime = when (val mealTimeData = feedingMap["mealTime"]) {
+                            is Map<*, *> -> { // If stored as a Map, reconstruct LocalDateTime
+                                try {
+                                    LocalDateTime.of(
+                                        (mealTimeData["year"] as? Number)?.toInt() ?: 2000,
+                                        (mealTimeData["monthValue"] as? Number)?.toInt() ?: 1, // ✅ Use monthValue directly
+                                        (mealTimeData["dayOfMonth"] as? Number)?.toInt() ?: 1, // ✅ Correct day field
+                                        (mealTimeData["hour"] as? Number)?.toInt() ?: 0,
+                                        (mealTimeData["minute"] as? Number)?.toInt() ?: 0,
+                                        (mealTimeData["second"] as? Number)?.toInt() ?: 0
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e("Firebase", "Error parsing mealTime Map: ${e.message}")
+                                    LocalDateTime.of(2000, 1, 1, 0, 0) // Default value
+                                }
+                            }
+                            is Number -> { // If stored as a timestamp, convert it
+                                Instant.ofEpochMilli(mealTimeData.toLong())
+                                    .atZone(ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                            }
+                            is String -> { // If stored as a string (possible edge case)
+                                try {
+                                    LocalDateTime.parse(mealTimeData)
+                                } catch (e: Exception) {
+                                    Log.e("Firebase", "Error parsing mealTime String: $mealTimeData")
+                                    LocalDateTime.of(2000, 1, 1, 0, 0) // Default
+                                }
+                            }
+                            else -> {
+                                Log.e("Firebase", "Unknown mealTime format: $mealTimeData")
+                                LocalDateTime.of(2000, 1, 1, 0, 0) // Default
+                            }
                         }
+
+                        val feeding = Feeding(
+                            petId = feedingMap["petId"] as? String ?: "",
+                            foodId = feedingMap["foodId"] as? String ?: "",
+                            entryDate = Date(feedingMap["entryDate"] as? Long ?: System.currentTimeMillis()),
+                            amount = (feedingMap["amount"] as? Number)?.toFloat() ?: 0.0F,
+                            mealTime = mealTime, // ✅ Correctly parsed LocalDateTime
+                            mealType = feedingMap["mealType"] as? String ?: "",
+                            notes = feedingMap["notes"] as? String ?: ""
+                        )
+
+                        feedingEvents.add(feeding)
                     }
                     _feedingEvents.postValue(feedingEvents)
                 }
@@ -899,6 +966,134 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
             }
             .addOnFailureListener {
                 Log.e("FirebaseError", "Error saving feeding: ${it.message}")
+            }
+    }
+
+    // Map and Place Tag
+    private val _placeTags = MutableStateFlow<Map<LatLng, String>>(emptyMap())
+    val placeTags: StateFlow<Map<LatLng, String>> = _placeTags
+
+    fun loadPlaceTags() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Log.e("loadPlaceTags", "User not authenticated.")
+            return
+        }
+
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
+        placeRef.get().addOnSuccessListener { dataSnapshot ->
+            val tags = mutableMapOf<LatLng, String>()
+            dataSnapshot.children.forEach { snapshot ->
+                val placeTag = snapshot.getValue(PlaceTag::class.java)
+                if (placeTag != null) {
+                    val latLng = LatLng(placeTag.latitude, placeTag.longitude)
+                    val address = placeTag.address ?: "Unknown Address" // Fetch address
+                    tags[latLng] = "Place: ${placeTag.name ?: "Unnamed Place"}\nAddress: $address"
+                }
+            }
+            _placeTags.value = tags
+            Log.d("loadPlaceTags", "Tags loaded successfully: $tags")
+        }.addOnFailureListener { exception ->
+            Log.e("loadPlaceTags", "Failed to load tags: ${exception.message}")
+        }
+    }
+
+    fun savePlaceTag(latLng: LatLng, tag: String, address: String?) {
+        Log.d("savePlaceTag", "Simulated saving: LatLng = $latLng, Tag = $tag, Address = $address")
+
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Log.e("savePlaceTag", "User not authenticated.")
+            return
+        }
+
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
+        val key = placeRef.push().key
+        if (key != null) {
+            val placeTag = address?.let {
+                PlaceTag(
+                    tagId = key,
+                    userId = userId,
+                    name = tag,
+                    latitude = latLng.latitude,
+                    longitude = latLng.longitude,
+                    address = it
+                )
+            }
+            placeRef.child(key).setValue(placeTag)
+                .addOnSuccessListener {
+                    Log.d("savePlaceTag", "Tag saved successfully: $placeTag")
+                    loadPlaceTags() // Reload tags after saving
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("savePlaceTag", "Failed to save tag: ${exception.message}")
+                }
+        } else {
+            Log.e("savePlaceTag", "Failed to generate a key.")
+        }
+    }
+
+    suspend fun getTagIdForLocation(location: LatLng): String? {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
+
+        return try {
+            val snapshot = placeRef.get().await() // Get all data under the user's tags
+            snapshot.children.firstOrNull { childSnapshot ->
+                val latitude = childSnapshot.child("latitude").getValue(Double::class.java)
+                val longitude = childSnapshot.child("longitude").getValue(Double::class.java)
+                val isMatch = latitude != null && longitude != null &&
+                        Math.abs(latitude - location.latitude) < 0.0001 && // Tolerance for latitude
+                        Math.abs(longitude - location.longitude) < 0.0001 // Tolerance for longitude
+
+                Log.d("getTagIdForLocation", "Checking tag: lat=$latitude, lng=$longitude, isMatch=$isMatch")
+                isMatch
+            }?.key
+        } catch (e: Exception) {
+            Log.e("getTagIdForLocation", "Error fetching tag ID: ${e.message}")
+            null
+        }
+    }
+
+    fun modifyPlaceTag(tagId: String, latLng: LatLng, newTagName: String) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Log.e("modifyPlaceTag", "User not authenticated.")
+            return
+        }
+
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId/$tagId")
+        val updates = mapOf(
+            "name" to newTagName,
+            "latitude" to latLng.latitude,
+            "longitude" to latLng.longitude
+        )
+
+        placeRef.updateChildren(updates)
+            .addOnSuccessListener {
+                Log.d("modifyPlaceTag", "Tag modified successfully: $tagId with new name: $newTagName")
+                loadPlaceTags() // Reload tags after modification
+            }
+            .addOnFailureListener { exception ->
+                Log.e("modifyPlaceTag", "Failed to modify tag: ${exception.message}")
+            }
+    }
+
+    fun deletePlaceTag(tagId: String) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId == null) {
+            Log.e("deletePlaceTag", "User not authenticated.")
+            return
+        }
+
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId/$tagId")
+        placeRef.removeValue()
+            .addOnSuccessListener {
+                Log.d("deletePlaceTag", "Tag deleted successfully: $tagId")
+                loadPlaceTags() // Reload tags after deletion
+            }
+            .addOnFailureListener { exception ->
+                Log.e("deletePlaceTag", "Failed to delete tag: ${exception.message}")
             }
     }
 
@@ -1047,6 +1242,5 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-//        repository.deleteUser(userProfile)
     }
 }

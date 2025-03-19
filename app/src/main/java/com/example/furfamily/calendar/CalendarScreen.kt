@@ -2,7 +2,6 @@ package com.example.furfamily.calendar
 
 import android.annotation.SuppressLint
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,13 +25,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,27 +51,33 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.example.furfamily.ViewModel
 import com.example.furfamily.getCurrentUserId
+import com.example.furfamily.nutrition.Feeding
+import com.example.furfamily.nutrition.Food
+import com.example.furfamily.profile.Pet
 import com.google.api.services.calendar.model.Event
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun CalendarScreen(viewModel: ViewModel = viewModel()) {
+fun CalendarScreen(viewModel: ViewModel) {
     val userId = getCurrentUserId()
     val context = LocalContext.current
     val intentForUserResolution by viewModel.intentForUserResolution.observeAsState()
     val calendarEvents by viewModel.calendarEventDates.observeAsState(emptyList())
-    val allEventsDates by viewModel.eventsDates.observeAsState(emptyList()) // Observe all events
+    val allEventsDates by viewModel.eventsDates.observeAsState(emptyList())
     val feedingEvents by viewModel.feedingEvents.observeAsState(emptyList())
+    val pets by viewModel.pets.observeAsState(emptyList())
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) } // Default to current date
-    var eventsDates by remember { mutableStateOf(emptyList<LocalDate>()) } // Events for the displayed month
-    var showCreateEvent by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var eventsDates by remember { mutableStateOf(emptyList<LocalDate>()) }
+    var showCreateEventDialog by remember { mutableStateOf(false) }
 
     // Load data when userId is available
     LaunchedEffect(userId) {
@@ -107,7 +109,7 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Event Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { showCreateEvent = !showCreateEvent }) {
+                    IconButton(onClick = { showCreateEventDialog = true }) {
                         Icon(Icons.Filled.Add, contentDescription = "Create Event")
                     }
                 }
@@ -145,14 +147,32 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    EventsList(calendarEvents)
+                    if (calendarEvents.isEmpty()) {
+                        Text(
+                            text = "No events for this date.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        EventsList(calendarEvents)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = "Feeding Records for $selectedDate",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    EventsList(feedingEvents)
+                    if (feedingEvents.isEmpty()) {
+                        Text(
+                            text = "No feeding records for this date.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        FeedingEventsList(feedingEvents, pets, viewModel)
+                    }
                 } else {
                     Text(
                         text = "Select a date to view events.",
@@ -162,6 +182,20 @@ fun CalendarScreen(viewModel: ViewModel = viewModel()) {
             }
         }
     )
+
+    if (showCreateEventDialog) {
+        CreateCalendarEvent(
+            viewModel = viewModel,
+            userId = userId ?: "",
+            pets = pets,
+            onEventCreated = {
+                showCreateEventDialog = false
+            },
+            onDismiss = {
+                showCreateEventDialog = false
+            }
+        )
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -274,13 +308,59 @@ fun EventItem(event: Event) {
     Card(modifier = Modifier
         .fillMaxWidth()
         .padding(8.dp)
-        .clickable { /* Open event details or perform an action */ }) {
+        .clickable { /* Open event details or perform an action */ },
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
         Column(
             modifier = Modifier.padding(8.dp)
         ) {
             Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
             Text(text = "Start: ${event.start.dateTime ?: event.start.date}", style = MaterialTheme.typography.bodySmall)
             Text(text = "End: ${event.end.dateTime ?: event.end.date}", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun FeedingEventsList(feedingEvents: List<Feeding>, pets: List<Pet>, viewModel: ViewModel) {
+    LazyColumn {
+        items(feedingEvents) { feeding ->
+            val pet = pets.find { it.petId == feeding.petId }
+            var food by remember { mutableStateOf<Food?>(null) }
+
+            // Load food details asynchronously
+            LaunchedEffect(feeding.foodId) {
+                viewModel.getFoodById(feeding.foodId) { fetchedFood ->
+                    food = fetchedFood
+                }
+            }
+
+            FeedingEventItem(feeding, pet, food)
+        }
+    }
+}
+
+@Composable
+fun FeedingEventItem(feeding: Feeding, pet: Pet?, food: Food?) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .clickable { /* Open feeding details */ },
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Text(text = pet?.name ?: "Unknown Pet", style = MaterialTheme.typography.titleMedium)
+            Text(text = "Food: ${food?.name ?: "Unknown Food"}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Meal Type: ${feeding.mealType}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Amount: ${feeding.amount} g", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Time: ${feeding.mealTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", style = MaterialTheme.typography.bodySmall)
+
+            if (feeding.notes.isNotEmpty()) {
+                Text(text = "Notes: ${feeding.notes}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
         }
     }
 }

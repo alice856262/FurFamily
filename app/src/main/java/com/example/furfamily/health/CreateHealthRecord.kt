@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -113,9 +114,9 @@ fun CreateHealthRecord(
                             .fillMaxWidth()
                             .padding(bottom = 8.dp),
                         readOnly = true,
-                        value = selectedPet?.name ?: "Choose a Pet",
+                        value = selectedPet?.name ?: "Please choose one",
                         onValueChange = {},
-                        label = { Text("Pet") },
+                        label = { Text("Pet Name") },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPetDropdownExpanded)
                         }
@@ -128,7 +129,7 @@ fun CreateHealthRecord(
                             Text("No pets available") // Handle empty pets list
                         }
                         pets.forEach { pet ->
-                            androidx.compose.material3.DropdownMenuItem(
+                            DropdownMenuItem(
                                 text = { Text(pet.name) },
                                 onClick = {
                                     selectedPet = pet
@@ -153,7 +154,7 @@ fun CreateHealthRecord(
                             .height(46.dp)
                     ) { Text(text = "Enter Record Date") }
                     Spacer(modifier = Modifier.width(12.dp))
-                    val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT)
+                    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
                     Text(
                         text = "${formatter.format(Date(entryDate))}",
                         modifier = Modifier.weight(1f)

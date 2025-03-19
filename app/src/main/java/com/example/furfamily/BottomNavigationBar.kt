@@ -21,9 +21,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.furfamily.calendar.CalendarScreen
+import com.example.furfamily.calendar.CreateCalendarEvent
 import com.example.furfamily.health.CreateHealthRecord
 import com.example.furfamily.health.HealthRecord
 import com.example.furfamily.health.HealthScreen
+import com.example.furfamily.map.MapScreen
 import com.example.furfamily.nutrition.AddNewFood
 import com.example.furfamily.nutrition.NutritionScreen
 import com.example.furfamily.profile.AddEditPetScreen
@@ -95,7 +97,6 @@ fun HomeScreen(viewModel: ViewModel) {
                     viewModel = viewModel
                 )
             }
-
             composable(Routes.Registration.value) {
                 RegistrationScreen(
                     createUserWithEmailPassword = { firstName, lastName, email, password, gender, phone, birthDate -> },
@@ -104,7 +105,7 @@ fun HomeScreen(viewModel: ViewModel) {
                 )
             }
             composable(Routes.CalendarScreen.value) {
-                CalendarScreen()
+                CalendarScreen(viewModel)
             }
             composable(Routes.HealthScreen.value) {
                 val userId = getCurrentUserId()
@@ -138,6 +139,9 @@ fun HomeScreen(viewModel: ViewModel) {
                     viewModel = viewModel,
                     navController = navController
                 )
+            }
+            composable(Routes.Map.value) {
+                MapScreen(viewModel)
             }
             composable(Routes.Profile.value) {
                 val userId = getCurrentUserId()

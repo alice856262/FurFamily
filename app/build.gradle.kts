@@ -100,6 +100,9 @@ dependencies {
     // Google Play Services
     implementation("com.google.android.gms:play-services-auth:20.2.0")
     implementation("com.google.android.gms:play-services-location:21.2.0")
+    implementation("com.google.android.gms:play-services-maps:18.1.0")
+    implementation("com.google.android.gms:play-services-places:17.0.0")
+    implementation("com.google.android.libraries.places:places:3.2.0")
 
     // Image Loading
     implementation("io.coil-kt:coil-compose:1.4.0")

@@ -2,11 +2,16 @@ package com.example.furfamily.calendar
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -14,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +43,11 @@ fun CreateCalendarEvent(
     onEventCreated: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
+//    var title by remember { mutableStateOf("") }
+    val defaultTitles = listOf("Vet Appointment", "Grooming", "Playdate", "Training Session", "Medication", "Other")
+    var selectedTitle by remember { mutableStateOf(defaultTitles.first()) }
+    var customTitle by remember { mutableStateOf("") }
+    var isTitleDropdownExpanded by remember { mutableStateOf(false) }
     var description by remember { mutableStateOf("") }
     var startTime by remember { mutableStateOf(LocalDateTime.now()) }
     var endTime by remember { mutableStateOf(LocalDateTime.now().plusHours(1)) }
@@ -50,23 +60,101 @@ fun CreateCalendarEvent(
         title = { Text("Create Calendar Event") },
         text = {
             Column {
-                TextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title") },
-                )
+//                TextField(
+//                    value = title,
+//                    onValueChange = { title = it },
+//                    label = { Text("Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+//                    colors = TextFieldDefaults.textFieldColors(
+//                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        containerColor = MaterialTheme.colorScheme.surface,
+//                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
+//                )
+                // Event Title Selection Dropdown
+                ExposedDropdownMenuBox(expanded = isTitleDropdownExpanded, onExpandedChange = { isTitleDropdownExpanded = it }) {
+                    TextField(
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                            .focusProperties { canFocus = false },
+                        readOnly = true,
+                        value = selectedTitle,
+                        onValueChange = {},
+                        label = { Text("Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        colors = TextFieldDefaults.textFieldColors(
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTitleDropdownExpanded) }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isTitleDropdownExpanded,
+                        onDismissRequest = { isTitleDropdownExpanded = false }
+                    ) {
+                        defaultTitles.forEach { title ->
+                            DropdownMenuItem(
+                                text = { Text(title) },
+                                onClick = {
+                                    selectedTitle = title
+                                    isTitleDropdownExpanded = false
+                                    if (title != "Other") customTitle = "" // Reset custom title when a predefined one is selected
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                // If "Other" is selected, show a TextField for custom input
+                if (selectedTitle == "Other") {
+                    TextField(
+                        modifier = Modifier.padding(top = 8.dp),
+                        value = customTitle,
+                        onValueChange = { customTitle = it },
+                        label = { Text("Custom Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        colors = TextFieldDefaults.textFieldColors(
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
                 TextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") },
+                    label = { Text("Description", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
-                DateTimePicker("Start Time", startTime) { startTime = it }
-                DateTimePicker("End Time", endTime) { endTime = it }
+                Spacer(modifier = Modifier.height(8.dp))
+
                 TextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("Location") },
+                    label = { Text("Location", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Pet Dropdown for selecting petId
                 if (pets.isNotEmpty()) {
@@ -80,9 +168,16 @@ fun CreateCalendarEvent(
                                 }
                                 .padding(bottom = 8.dp),
                             readOnly = true,
-                            value = selectedPet?.name ?: "Select Pet",
+                            value = selectedPet?.name ?: "Please choose one",
                             onValueChange = {},
-                            label = { Text("Pet") },
+                            label = { Text("Pet Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            colors = TextFieldDefaults.textFieldColors(
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) }
                         )
                         ExposedDropdownMenu(
@@ -90,7 +185,7 @@ fun CreateCalendarEvent(
                             onDismissRequest = { isExpanded = false }
                         ) {
                             pets.forEach { pet ->
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(pet.name) },
                                     onClick = {
                                         selectedPet = pet
@@ -104,34 +199,42 @@ fun CreateCalendarEvent(
                 } else {
                     Text("No pets available", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
                 }
+
+                DateTimePicker("Start Time", startTime) { startTime = it }
+                DateTimePicker("End Time", endTime) { endTime = it }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val event = CalendarEvent(
-                        userId = userId,
-                        petId = selectedPet?.petId ?: "",
-                        title = title,
-                        description = description,
-                        startTime = startTime,
-                        endTime = endTime,
-                        location = location
-                    )
-                    viewModel.createEvent(event) {
-                        onEventCreated() // Notify the screen to hide the create event section
-                    }
-                },
-                enabled = title.isNotBlank() && startTime.isBefore(endTime) && selectedPet != null // Enable button if conditions are met
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Save Event")
+                Button(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        val eventTitle = if (selectedTitle == "Other") customTitle else selectedTitle
+                        val event = CalendarEvent(
+                            userId = userId,
+                            petId = selectedPet?.petId ?: "",
+                            title = eventTitle,
+                            description = description,
+                            startTime = startTime,
+                            endTime = endTime,
+                            location = location
+                        )
+                        viewModel.createEvent(event) {
+                            onEventCreated() // Notify the screen to hide the create event section
+                        }
+                    },
+                    enabled = (selectedTitle != "Other" || customTitle.isNotBlank()) && startTime.isBefore(endTime) && selectedPet != null // Enable button if conditions are met
+                ) {
+                    Text("Save")
+                }
             }
         },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
 

@@ -8,6 +8,7 @@ enum class Routes (val value: String) {
     NewHealthRecord("CreateHealthRecord"),
     Nutrition("Nutrition"),
     NewFood("CreateEditFood"),
+    Map("MapScreen"),
     Profile("Profile"),
     AddEditPet("AddEditPetScreen")
 }

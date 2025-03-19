@@ -14,7 +14,7 @@ data class NavBarItem(
         fun NavBarItems(): List<NavBarItem> {
             return listOf(
                 NavBarItem(
-                    label = "Calendar",
+                    label = "Event",
                     icon = painterResource(R.drawable.calendar),
                     route = Routes.CalendarScreen.value
                 ),
@@ -24,9 +24,14 @@ data class NavBarItem(
                     route = Routes.HealthScreen.value
                 ),
                 NavBarItem(
-                    label = "Nutrition",
+                    label = "Food",
                     icon = painterResource(R.drawable.nutrition),
                     route = Routes.Nutrition.value
+                ),
+                NavBarItem(
+                    label = "Map",
+                    icon = painterResource(R.drawable.map),
+                    route = Routes.Map.value
                 ),
                 NavBarItem(
                     label = "Profile",
