@@ -30,12 +30,16 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -58,9 +63,12 @@ import com.example.furfamily.nutrition.Feeding
 import com.example.furfamily.nutrition.Food
 import com.example.furfamily.profile.Pet
 import com.google.api.services.calendar.model.Event
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -70,14 +78,20 @@ fun CalendarScreen(viewModel: ViewModel) {
     val userId = getCurrentUserId()
     val context = LocalContext.current
     val intentForUserResolution by viewModel.intentForUserResolution.observeAsState()
+    val allEvents by viewModel.calendarEvents.observeAsState(emptyList())
     val calendarEvents by viewModel.calendarEventDates.observeAsState(emptyList())
     val allEventsDates by viewModel.eventsDates.observeAsState(emptyList())
     val feedingEvents by viewModel.feedingEvents.observeAsState(emptyList())
     val pets by viewModel.pets.observeAsState(emptyList())
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val today = LocalDate.now()
+    var selectedDate by remember { mutableStateOf(today) }
     var eventsDates by remember { mutableStateOf(emptyList<LocalDate>()) }
     var showCreateEventDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedPetName by remember { mutableStateOf("All Pets") }
+    val petNames = listOf("All Pets") + pets.map { it.name }
+    var isPetNameExpanded by remember { mutableStateOf(false) }
 
     // Load data when userId is available
     LaunchedEffect(userId) {
@@ -104,6 +118,21 @@ fun CalendarScreen(viewModel: ViewModel) {
         }
     }
 
+    val filteredEvents = remember(searchQuery, calendarEvents, allEvents) {
+        if (searchQuery.isBlank()) {
+            calendarEvents
+        } else {
+            allEvents.filter {
+                it.summary?.contains(searchQuery, ignoreCase = true) == true ||
+                        it.description?.contains(searchQuery, ignoreCase = true) == true
+            }
+        }
+    }
+
+    val filteredFeedingEvents = feedingEvents.filter {
+        selectedPetName == "All Pets" || pets.find { p -> p.petId == it.petId }?.name == selectedPetName
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -119,65 +148,140 @@ fun CalendarScreen(viewModel: ViewModel) {
             Column(
                 modifier = Modifier
                     .padding(paddingValues)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 6.dp)
                     .fillMaxSize()
             ) {
                 // Month View
                 MonthView(
                     currentDate = currentDate,
                     selectedDate = selectedDate,
-                    eventsDates = eventsDates, // Pass filtered events
+                    eventsDates = eventsDates,
                     onDaySelected = { date ->
-                        selectedDate = date // Update selected date
+                        selectedDate = date
                         viewModel.loadEventsForDate(date)
                         viewModel.loadFeedingEventsForDate(date)
                     },
                     onMonthChanged = { newDate ->
-                        currentDate = newDate // Update month
-                        selectedDate = null // Reset selected date
+                        currentDate = newDate
+                        selectedDate = if (YearMonth.from(newDate) == YearMonth.from(today)) today else null
+
+                        // Clear events when no date is selected
+                        if (YearMonth.from(newDate) != YearMonth.from(today)) {
+                            viewModel.clearSelectedDateEvents()
+                        }
                     }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Display events for the selected date
-                if (selectedDate != null) {
-                    Text(
-                        text = "Events for $selectedDate",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                Column(
+                    modifier = Modifier
+                        .padding(start = 12.dp, end = 12.dp)
+                ) {
+                    // Search bar for events
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search Events") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
                     )
-                    if (calendarEvents.isEmpty()) {
+
+                    // Events List (always shown below search bar)
+                    if (selectedDate == null && searchQuery.isBlank()) {
                         Text(
-                            text = "No events for this date.",
+                            text = "Please select a date to view events.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        EventsList(calendarEvents)
+                        Text(
+                            text = if (searchQuery.isNotBlank())
+                                "Events matching \"$searchQuery\""
+                            else
+                                "Events for $selectedDate",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        if (filteredEvents.isEmpty()) {
+                            Text(
+                                text = if (searchQuery.isNotBlank())
+                                    "No events found for \"$searchQuery\"."
+                                else
+                                    "No events for this date.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            EventsList(filteredEvents)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text(
-                        text = "Feeding Records for $selectedDate",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (feedingEvents.isEmpty()) {
+                    // Pet Name Dropdown for Feeding Events
+                    ExposedDropdownMenuBox(
+                        expanded = isPetNameExpanded,
+                        onExpandedChange = { isPetNameExpanded = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        TextField(
+                            readOnly = true,
+                            value = selectedPetName,
+                            onValueChange = {},
+                            label = { Text("Pet Name") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPetNameExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                                .focusProperties { canFocus = false },
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = isPetNameExpanded,
+                            onDismissRequest = { isPetNameExpanded = false }
+                        ) {
+                            petNames.forEach { name ->
+                                DropdownMenuItem(
+                                    text = { Text(name) },
+                                    onClick = {
+                                        selectedPetName = name
+                                        isPetNameExpanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+
+                    // Feeding List (below pet name dropdown)
+                    if (selectedDate == null) {
                         Text(
-                            text = "No feeding records for this date.",
+                            text = "Please select a date to view feeding records.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        FeedingEventsList(feedingEvents, pets, viewModel)
+                        Text(
+                            text = "Feeding Records for $selectedDate",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        if (feedingEvents.isEmpty()) {
+                            Text(
+                                text = "No feeding records for this date.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            FeedingEventsList(filteredFeedingEvents, pets, viewModel)
+                        }
                     }
-                } else {
-                    Text(
-                        text = "Select a date to view events.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
                 }
             }
         }
@@ -305,19 +409,31 @@ fun EventsList(events: List<Event>) {
 
 @Composable
 fun EventItem(event: Event) {
-    Card(modifier = Modifier
-        .fillMaxWidth()
-        .padding(8.dp)
-        .clickable { /* Open event details or perform an action */ },
+    val startMillis = event.start?.dateTime?.value ?: event.start?.date?.value
+    val endMillis = event.end?.dateTime?.value ?: event.end?.date?.value
+
+    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+
+    val formattedStart = startMillis?.let {
+        formatter.format(Date(it))
+    } ?: "No Start Time"
+
+    val formattedEnd = endMillis?.let {
+        formatter.format(Date(it))
+    } ?: "No End Time"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .clickable { /* Open event details */ },
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(8.dp)
-        ) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Start: ${event.start.dateTime ?: event.start.date}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "End: ${event.end.dateTime ?: event.end.date}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Start: $formattedStart", style = MaterialTheme.typography.bodySmall)
+            Text(text = "End: $formattedEnd", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

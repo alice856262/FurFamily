@@ -65,10 +65,9 @@ import com.google.firebase.database.ChildEventListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONException
 import org.json.JSONObject
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
@@ -444,6 +443,11 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     fun localDateTimeToDateTime(ldt: LocalDateTime): DateTime {
         val instant = ldt.atZone(ZoneId.systemDefault()).toInstant()
         return DateTime(instant.toEpochMilli())
+    }
+
+    fun clearSelectedDateEvents() {
+        _calendarEventDates.value = emptyList()
+        _feedingEvents.value = emptyList()
     }
 
     // Health Record
@@ -973,6 +977,9 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
     private val _placeTags = MutableStateFlow<Map<LatLng, String>>(emptyMap())
     val placeTags: StateFlow<Map<LatLng, String>> = _placeTags
 
+    private val _placeCategories = MutableStateFlow<Map<LatLng, String>>(emptyMap())
+    val placeCategories: StateFlow<Map<LatLng, String>> = _placeCategories
+
     fun loadPlaceTags() {
         val userId = FirebaseAuth.getInstance().currentUser?.uid
         if (userId == null) {
@@ -982,25 +989,27 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
         val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
         placeRef.get().addOnSuccessListener { dataSnapshot ->
-            val tags = mutableMapOf<LatLng, String>()
+            val tagsMap = mutableMapOf<LatLng, String>()
+            val categoryMap = mutableMapOf<LatLng, String>()
+
             dataSnapshot.children.forEach { snapshot ->
                 val placeTag = snapshot.getValue(PlaceTag::class.java)
                 if (placeTag != null) {
                     val latLng = LatLng(placeTag.latitude, placeTag.longitude)
-                    val address = placeTag.address ?: "Unknown Address" // Fetch address
-                    tags[latLng] = "Place: ${placeTag.name ?: "Unnamed Place"}\nAddress: $address"
+                    val name = placeTag.name ?: "Unnamed Place"
+
+                    tagsMap[latLng] = name
+                    categoryMap[latLng] = placeTag.category ?: "Other"
                 }
             }
-            _placeTags.value = tags
-            Log.d("loadPlaceTags", "Tags loaded successfully: $tags")
+            _placeTags.value = tagsMap
+            _placeCategories.value = categoryMap
         }.addOnFailureListener { exception ->
             Log.e("loadPlaceTags", "Failed to load tags: ${exception.message}")
         }
     }
 
-    fun savePlaceTag(latLng: LatLng, tag: String, address: String?) {
-        Log.d("savePlaceTag", "Simulated saving: LatLng = $latLng, Tag = $tag, Address = $address")
-
+    fun savePlaceTag(latLng: LatLng, tag: String, address: String?, category: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid
         if (userId == null) {
             Log.e("savePlaceTag", "User not authenticated.")
@@ -1010,16 +1019,16 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
         val key = placeRef.push().key
         if (key != null) {
-            val placeTag = address?.let {
-                PlaceTag(
-                    tagId = key,
-                    userId = userId,
-                    name = tag,
-                    latitude = latLng.latitude,
-                    longitude = latLng.longitude,
-                    address = it
-                )
-            }
+            val placeTag = PlaceTag(
+                tagId = key,
+                userId = userId,
+                name = tag,
+                latitude = latLng.latitude,
+                longitude = latLng.longitude,
+                address = address ?: "Unknown Address",
+                category = category
+            )
+
             placeRef.child(key).setValue(placeTag)
                 .addOnSuccessListener {
                     Log.d("savePlaceTag", "Tag saved successfully: $placeTag")
@@ -1033,29 +1042,56 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun getTagIdForLocation(location: LatLng): String? {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+    suspend fun getTagDetailsForLocation(location: LatLng): Pair<String?, String?> {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return Pair(null, null)
         val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
 
         return try {
-            val snapshot = placeRef.get().await() // Get all data under the user's tags
-            snapshot.children.firstOrNull { childSnapshot ->
+            val snapshot = placeRef.get().await()
+            val matchingChild = snapshot.children.firstOrNull { childSnapshot ->
                 val latitude = childSnapshot.child("latitude").getValue(Double::class.java)
                 val longitude = childSnapshot.child("longitude").getValue(Double::class.java)
                 val isMatch = latitude != null && longitude != null &&
                         Math.abs(latitude - location.latitude) < 0.0001 && // Tolerance for latitude
                         Math.abs(longitude - location.longitude) < 0.0001 // Tolerance for longitude
 
-                Log.d("getTagIdForLocation", "Checking tag: lat=$latitude, lng=$longitude, isMatch=$isMatch")
                 isMatch
-            }?.key
+            }
+
+            if (matchingChild != null) {
+                val id = matchingChild.key
+                val name = matchingChild.child("name").getValue(String::class.java)
+                Pair(id, name)
+            } else {
+                Pair(null, null)
+            }
         } catch (e: Exception) {
-            Log.e("getTagIdForLocation", "Error fetching tag ID: ${e.message}")
+            Log.e("getTagDetailsForLocation", "Error fetching tag details: ${e.message}")
+            Pair(null, null)
+        }
+    }
+
+    suspend fun getPlaceTagByLocation(location: LatLng): PlaceTag? {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        val placeRef = FirebaseDatabase.getInstance().getReference("placeTags/$userId")
+
+        return try {
+            val snapshot = placeRef.get().await()
+            snapshot.children.firstOrNull { childSnapshot ->
+                val latitude = childSnapshot.child("latitude").getValue(Double::class.java)
+                val longitude = childSnapshot.child("longitude").getValue(Double::class.java)
+
+                latitude != null && longitude != null &&
+                        Math.abs(latitude - location.latitude) < 0.0001 &&
+                        Math.abs(longitude - location.longitude) < 0.0001
+            }?.getValue(PlaceTag::class.java)
+        } catch (e: Exception) {
+            Log.e("getPlaceTagByLocation", "Error fetching place tag: ${e.message}")
             null
         }
     }
 
-    fun modifyPlaceTag(tagId: String, latLng: LatLng, newTagName: String) {
+    fun modifyPlaceTag(tagId: String, latLng: LatLng, newTagName: String, category: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid
         if (userId == null) {
             Log.e("modifyPlaceTag", "User not authenticated.")
@@ -1066,7 +1102,8 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         val updates = mapOf(
             "name" to newTagName,
             "latitude" to latLng.latitude,
-            "longitude" to latLng.longitude
+            "longitude" to latLng.longitude,
+            "category" to category
         )
 
         placeRef.updateChildren(updates)
@@ -1173,6 +1210,150 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSelectedPet(pet: Pet?) {
         _selectedPet.value = pet
+    }
+
+    fun askPetAdvice(
+        userId: String,
+        pet: Pet,
+        question: String,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // --- 1. Manually Fetch and Deserialize Feeding Records ---
+                val feedingSnapshot = FirebaseDatabase.getInstance()
+                    .getReference("feedings/$userId")
+                    .get().await()
+
+                val feeding = feedingSnapshot.children.mapNotNull { child ->
+                    val map = child.value as? Map<*, *> ?: return@mapNotNull null
+                    if (map["petId"] != pet.petId) return@mapNotNull null
+
+                    val mealTime = when (val mealTimeData = map["mealTime"]) {
+                        is Map<*, *> -> {
+                            try {
+                                LocalDateTime.of(
+                                    (mealTimeData["year"] as? Number)?.toInt() ?: 2000,
+                                    (mealTimeData["monthValue"] as? Number)?.toInt() ?: 1,
+                                    (mealTimeData["dayOfMonth"] as? Number)?.toInt() ?: 1,
+                                    (mealTimeData["hour"] as? Number)?.toInt() ?: 0,
+                                    (mealTimeData["minute"] as? Number)?.toInt() ?: 0,
+                                    (mealTimeData["second"] as? Number)?.toInt() ?: 0
+                                )
+                            } catch (e: Exception) {
+                                LocalDateTime.of(2000, 1, 1, 0, 0)
+                            }
+                        }
+                        is Number -> Instant.ofEpochMilli(mealTimeData.toLong())
+                            .atZone(ZoneId.systemDefault()).toLocalDateTime()
+                        is String -> try {
+                            LocalDateTime.parse(mealTimeData)
+                        } catch (e: Exception) {
+                            LocalDateTime.of(2000, 1, 1, 0, 0)
+                        }
+                        else -> LocalDateTime.of(2000, 1, 1, 0, 0)
+                    }
+
+                    Feeding(
+                        petId = map["petId"] as? String ?: "",
+                        foodId = map["foodId"] as? String ?: "",
+                        amount = (map["amount"] as? Number)?.toFloat() ?: 0f,
+                        mealTime = mealTime,
+                        mealType = map["mealType"] as? String ?: "",
+                        notes = map["notes"] as? String ?: ""
+                    )
+                }
+
+                // --- 2. Manually Fetch and Deserialize Health Records ---
+                val healthSnapshot = FirebaseDatabase.getInstance()
+                    .getReference("healthRecords/$userId")
+                    .get().await()
+
+                val health = healthSnapshot.children.mapNotNull { child ->
+                    val map = child.value as? Map<*, *> ?: return@mapNotNull null
+                    if (map["petId"] != pet.petId) return@mapNotNull null
+
+                    // Extract the nested entryDate.time
+                    val entryDateMap = map["entryDate"] as? Map<*, *>
+                    val entryDateTime = (entryDateMap?.get("time") as? Number)?.toLong() ?: System.currentTimeMillis()
+
+                    HealthRecord(
+                        petId = map["petId"] as? String ?: "",
+                        entryDate = Date(entryDateTime),
+                        weight = (map["weight"] as? Number)?.toFloat() ?: 0f
+                    )
+                }
+
+                // --- 3. Fetch Related Events ---
+                val calendarSnapshot = FirebaseDatabase.getInstance()
+                    .getReference("events/$userId")
+                    .get().await()
+
+                val events = calendarSnapshot.children.mapNotNull { snap ->
+                    val map = snap.value as? Map<*, *> ?: return@mapNotNull null
+                    val title = map["title"] as? String ?: return@mapNotNull null
+                    val description = map["description"] as? String
+                    if (description?.contains(pet.petId) == true || title.contains(pet.name)) {
+                        title to description
+                    } else null
+                }
+
+                // --- 4. Format all info ---
+                val feedingInfo = feeding.joinToString("\n") {
+                    "- ${it.mealTime.toLocalDate()} ${it.mealType}: ${it.amount}g, notes: ${it.notes}"
+                }
+
+                val healthInfo = health.joinToString("\n") {
+                    "- ${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(it.entryDate)}: weight = ${it.weight}"
+                }
+
+                val eventInfo = events.joinToString("\n") { "- ${it.first}: ${it.second}" }
+
+                // --- 5. Create OpenAI Prompt ---
+                val prompt = """
+                    Pet Profile:
+                    Name: ${pet.name}
+                    Type: ${pet.type}
+                    Breed: ${pet.breed}
+                    Sex: ${pet.selectedSex}
+                    Birth Date: ${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(pet.birthDate)}
+                    
+                    Recent Feeding Records:
+                    $feedingInfo
+                    
+                    Health Records:
+                    $healthInfo
+                    
+                    Events:
+                    $eventInfo
+                    
+                    User Question: $question
+                    
+                    Provide a helpful, friendly response based on all the pet's data.
+                """.trimIndent()
+
+                Log.d("askPetAdvice", "Prompt sent to OpenAI:\n$prompt")
+
+                // --- 6. Call OpenAI ---
+                val requestBody = ChatRequest(
+                    model = "gpt-4o",
+                    messages = listOf(
+                        Message(role = "system", content = "You are a helpful and smart assistant."),
+                        Message(role = "user", content = prompt)
+                    ),
+                    max_tokens = 800
+                )
+
+                val response = RetrofitInstance.api.getChatResponse(requestBody)
+                val result = response.choices.firstOrNull()?.message?.content ?: "No response"
+                onSuccess(result.trim())
+
+            } catch (e: Exception) {
+                Log.e("askPetAdvice", "Error: ${e.message}", e)
+                onError("Failed to get pet advice: ${e.message}")
+            }
+        }
     }
 
     fun loadUserProfile(userId: String) {

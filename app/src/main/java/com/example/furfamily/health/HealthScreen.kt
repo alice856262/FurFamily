@@ -91,11 +91,13 @@ fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavControl
         lineEntries.clear()
         dateLabels.clear()
 
-        healthRecords.forEachIndexed { index, record ->
-            record.weight?.takeIf { it != 0f }?.let {
-                lineEntries.add(Entry(index.toFloat(), it))
-                dateLabels.add(SimpleDateFormat("dd/MM", Locale.US).format(record.entryDate))
-            }
+        val sortedRecords = healthRecords
+            .filter { it.weight != null && it.weight != 0f }
+            .sortedBy { it.entryDate.time }
+
+        sortedRecords.forEachIndexed { index, record ->
+            lineEntries.add(Entry(index.toFloat(), record.weight!!))
+            dateLabels.add(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(record.entryDate))
         }
     }
 
@@ -187,9 +189,21 @@ fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavControl
                         update = { chart ->
                             val lineDataSet = LineDataSet(lineEntries, "Weight").apply {
                                 colors = ColorTemplate.COLORFUL_COLORS.toList()
+                                valueTextSize = 12f
+                                setDrawValues(true)
+                                valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                    override fun getPointLabel(entry: Entry?): String {
+                                        return entry?.y?.let { String.format("%.1f", it) } ?: ""
+                                    }
+                                }
                             }
                             chart.data = LineData(lineDataSet)
-                            chart.xAxis.valueFormatter = IndexAxisValueFormatter(dateLabels)
+                            chart.xAxis.apply {
+                                valueFormatter = IndexAxisValueFormatter(dateLabels)
+                                setLabelCount(dateLabels.size, true) // Force exact label count
+                                granularity = 1f // Ensure each index gets its own label
+                                setAvoidFirstLastClipping(true) // Help prevent clipping of first/last labels
+                            }
                             chart.invalidate() // Refresh the chart
                         }
                     )
@@ -204,54 +218,56 @@ fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavControl
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    healthRecords.forEach { record ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
+                    healthRecords
+                        .sortedByDescending { it.entryDate.time }
+                        .forEach { record ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                             ) {
-                                Text(
-                                    text = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(record.entryDate),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                record.weight?.takeIf { it != 0f }?.let {
-                                    Text(text = "Weight: ${"%.1f".format(it)} kg", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.temperature?.takeIf { it != 0f }?.let {
-                                    Text(text = "Body temperature: ${"%.1f".format(it)} °C", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.rbc?.takeIf { it != 0f }?.let {
-                                    Text(text = "RBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.wbc?.takeIf { it != 0f }?.let {
-                                    Text(text = "WBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.plt?.takeIf { it != 0f }?.let {
-                                    Text(text = "PLT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.alb?.takeIf { it != 0f }?.let {
-                                    Text(text = "Alb (Albumin): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.ast?.takeIf { it != 0f }?.let {
-                                    Text(text = "AST: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.alt?.takeIf { it != 0f }?.let {
-                                    Text(text = "ALT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.bun?.takeIf { it != 0f }?.let {
-                                    Text(text = "BUN: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
-                                }
-                                record.scr?.takeIf { it != 0f }?.let {
-                                    Text(text = "Scr (Serum creatinine): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(record.entryDate),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    record.weight?.takeIf { it != 0f }?.let {
+                                        Text(text = "Weight: ${"%.1f".format(it)} kg", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.temperature?.takeIf { it != 0f }?.let {
+                                        Text(text = "Body temperature: ${"%.1f".format(it)} °C", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.rbc?.takeIf { it != 0f }?.let {
+                                        Text(text = "RBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.wbc?.takeIf { it != 0f }?.let {
+                                        Text(text = "WBC: ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.plt?.takeIf { it != 0f }?.let {
+                                        Text(text = "PLT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.alb?.takeIf { it != 0f }?.let {
+                                        Text(text = "Alb (Albumin): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.ast?.takeIf { it != 0f }?.let {
+                                        Text(text = "AST: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.alt?.takeIf { it != 0f }?.let {
+                                        Text(text = "ALT: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.bun?.takeIf { it != 0f }?.let {
+                                        Text(text = "BUN: ${it.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    record.scr?.takeIf { it != 0f }?.let {
+                                        Text(text = "Scr (Serum creatinine): ${"%.1f".format(it)}", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
-                        }
                     }
                 }
             }

@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "925201087785-8br17cahi86esmeqldmofot0pa9f16ob.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.furfamily",
+            "certificate_hash": "a86c3f10ae3912456d5b91b0446ae7c5c3db9480"
+          }
+        },
+        {
           "client_id": "925201087785-vdpu5lgu1thdg3k0cjv7usq8h54gjm8o.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

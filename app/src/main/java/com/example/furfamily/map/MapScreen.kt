@@ -11,22 +11,44 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -35,6 +57,7 @@ import com.example.furfamily.ViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
@@ -53,25 +76,23 @@ fun MapScreen(viewModel: ViewModel) {
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     val mapView = rememberMapViewWithLifecycle()
     val placesClient = remember { Places.createClient(context) }
-
+    var hasMovedCamera by remember { mutableStateOf(false) }
     var selectedPlace by remember { mutableStateOf<LatLng?>(null) }
     var selectedTagId by remember { mutableStateOf<String?>(null) }
     var showTagDialog by remember { mutableStateOf(false) }
     var placeName by remember { mutableStateOf("") }
     var placeDetails by remember { mutableStateOf<Place?>(null) }
     var modifyTag by remember { mutableStateOf(false) }
-
+    var selectedCategory by remember { mutableStateOf("") }
+    var categoryFilter by remember { mutableStateOf<String?>(null) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
-    val placeTags = remember { mutableStateMapOf<LatLng, String>() }
+    val placeTags by viewModel.placeTags.collectAsState()
+    val placeCategories by viewModel.placeCategories.collectAsState()
     val markerMap = remember { mutableStateMapOf<LatLng, Marker>() }
 
-    // Load initial tags
+    // Load initial tags and categories
     LaunchedEffect(Unit) {
         viewModel.loadPlaceTags()
-        viewModel.placeTags.collect { tags ->
-            placeTags.clear()
-            placeTags.putAll(tags)
-        }
     }
 
     // Fetch current location
@@ -91,6 +112,46 @@ fun MapScreen(viewModel: ViewModel) {
         }
     }
 
+    // Update map markers when place tags change or category filter changes
+    LaunchedEffect(placeTags, placeCategories, categoryFilter) {
+        mapView.getMapAsync { googleMap ->
+            // Clear existing markers
+            markerMap.values.forEach { it.remove() }
+            markerMap.clear()
+
+            // Filter places based on selected category
+            val filteredPlaces = if (categoryFilter != null) {
+                placeTags.filter { (location, _) ->
+                    placeCategories[location] == categoryFilter
+                }
+            } else {
+                placeTags
+            }
+
+            // Re-add markers based on current state and filter
+            filteredPlaces.forEach { (location, tag) ->
+                val category = placeCategories[location] ?: "Other"
+                val markerColor = getMarkerColorForCategory(category)
+
+                val markerOptions = MarkerOptions()
+                    .position(location)
+                    .title(tag)
+
+                try {
+                    val hue = getMarkerHueFromColor(markerColor)
+                    markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
+                } catch (e: Exception) {
+                    Log.e("MapScreen", "Error setting marker icon: ${e.message}")
+                }
+
+                val marker = googleMap.addMarker(markerOptions)
+                if (marker != null) {
+                    markerMap[location] = marker
+                }
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Search Bar
@@ -100,10 +161,20 @@ fun MapScreen(viewModel: ViewModel) {
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
-                SearchBar { latLng, name ->
+                SearchBar { latLng, name, address ->
                     selectedPlace = latLng
                     placeName = name
+                    placeDetails = if (address != null) {
+                        Place.builder()
+                            .setLatLng(latLng)
+                            .setName(name)
+                            .setAddress(address)
+                            .build()
+                    } else {
+                        null
+                    }
                     modifyTag = false
+                    selectedCategory = "Other" // Default category for new tags
                     showTagDialog = true
                 }
             }
@@ -126,22 +197,11 @@ fun MapScreen(viewModel: ViewModel) {
                         googleMap.isMyLocationEnabled = true
                     }
 
-                    // Move camera to current location
-                    currentLocation?.let {
-                        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(it, 15f))
-                    }
-
-                    // Add markers for saved tags dynamically
-                    placeTags.forEach { (location, tag) ->
-                        if (!markerMap.containsKey(location)) {
-                            val marker = googleMap.addMarker(
-                                MarkerOptions()
-                                    .position(location)
-                                    .title(tag)
-                            )
-                            if (marker != null) {
-                                markerMap[location] = marker
-                            }
+                    // Move camera only once when the map first loads
+                    if (!hasMovedCamera) {
+                        currentLocation?.let {
+                            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(it, 15f))
+                            hasMovedCamera = true
                         }
                     }
 
@@ -153,6 +213,7 @@ fun MapScreen(viewModel: ViewModel) {
                             selectedPlace = place.latLng
                             selectedTagId = null
                             modifyTag = false
+                            selectedCategory = "Other"
                             showTagDialog = true
                         }
                     }
@@ -161,46 +222,123 @@ fun MapScreen(viewModel: ViewModel) {
                     googleMap.setOnMapClickListener { latLng ->
                         selectedPlace = latLng
                         placeName = "Unnamed Place"
+                        placeDetails = null // Reset place details
+                        selectedCategory = "Other" // Default category for new tags
+
+                        // Perform reverse geocoding to get address
+                        val geocoder = Geocoder(context)
+                        try {
+                            @Suppress("DEPRECATION") // For backward compatibility
+                            geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)?.let { addresses ->
+                                if (addresses.isNotEmpty()) {
+                                    val address = addresses[0]
+                                    val addressText = address.getAddressLine(0) ?: "Unknown Address"
+
+                                    // Create a simple Place object with just the address
+                                    placeDetails = Place.builder()
+                                        .setLatLng(latLng)
+                                        .setAddress(addressText)
+                                        .build()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MapScreen", "Error getting address: ${e.message}")
+                        }
+
                         showTagDialog = true
                     }
                 }
             }
 
+            // Category Legend with active filter indication
+            Spacer(modifier = Modifier.height(4.dp))
+            CategoryLegend(
+                selectedCategory = categoryFilter,
+                onCategorySelected = { category ->
+                    // Toggle filter: if already selected, clear filter, otherwise set it
+                    categoryFilter = if (categoryFilter == category) null else category
+                }
+            )
+
+            // Current filter indicator
+            if (categoryFilter != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filtering: $categoryFilter",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(8.dp)
+                    )
+
+                    TextButton(
+                        onClick = { categoryFilter = null }
+                    ) {
+                        Text("Clear Filter")
+                    }
+                }
+            }
+
+            // Display tagged places with category information (filtered by selected category)
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
-                items(placeTags.entries.toList()) { (location, tag) ->
+                // Filter the places based on selected category
+                val filteredPlaces = if (categoryFilter != null) {
+                    placeTags.entries.filter { (location, _) ->
+                        placeCategories[location] == categoryFilter
+                    }
+                } else {
+                    placeTags.entries
+                }
+
+                items(filteredPlaces.toList()) { (location, tag) ->
                     val coroutineScope = rememberCoroutineScope()
+                    val category = placeCategories[location] ?: "Other"
+                    var address by remember { mutableStateOf("Loading address...") }
+
+                    // Load the address for this location
+                    LaunchedEffect(location) {
+                        coroutineScope.launch {
+                            val placeTag = viewModel.getPlaceTagByLocation(location)
+                            address = placeTag?.address ?: "Address not available"
+                        }
+                    }
 
                     TaggedPlaceItem(
                         tag = tag,
+                        category = category,
                         location = location,
+                        address = address,
                         onNavigate = { navigateToLocation(context, location) },
                         onModify = {
                             coroutineScope.launch {
-                                val tagId = viewModel.getTagIdForLocation(location)
+                                val (tagId, tagName) = viewModel.getTagDetailsForLocation(location)
                                 if (tagId != null) {
                                     selectedPlace = location
-                                    placeName = tag
+                                    placeName = tagName ?: tag
                                     selectedTagId = tagId
+                                    selectedCategory = placeCategories[location] ?: "Other"
                                     modifyTag = true
                                     showTagDialog = true
                                 } else {
-                                    Toast.makeText(context, "Failed to retrieve tag ID for modification.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Failed to retrieve tag details for modification.", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },
                         onDelete = {
                             coroutineScope.launch {
-                                val tagId = viewModel.getTagIdForLocation(location)
+                                val (tagId, _) = viewModel.getTagDetailsForLocation(location)
                                 if (tagId != null) {
                                     viewModel.deletePlaceTag(tagId)
-                                    placeTags.remove(location) // Update state directly
-                                    markerMap[location]?.remove() // Remove the marker from the map
-                                    markerMap.remove(location) // Remove from the marker map
                                 } else {
                                     Toast.makeText(context, "Failed to delete tag: Tag ID not found.", Toast.LENGTH_SHORT).show()
                                 }
@@ -211,20 +349,19 @@ fun MapScreen(viewModel: ViewModel) {
             }
         }
 
-        // Show dialog to add or modify a tag
+        // Show dialog to add or modify a tag with category
         if (showTagDialog) {
             AddTagDialog(
                 placeName = placeName,
                 placeDetails = placeDetails,
-                onAddTag = { tag ->
+                initialCategory = selectedCategory,
+                onAddTag = { tag, category ->
                     selectedPlace?.let { latLng ->
-                        val address = placeDetails?.address ?: "Unknown Address" // Use fetched address
+                        val address = placeDetails?.address ?: "Unknown Address"
                         if (modifyTag && selectedTagId != null) {
-                            viewModel.modifyPlaceTag(selectedTagId!!, latLng, tag)
-                            placeTags[latLng] = tag // Update state directly
+                            viewModel.modifyPlaceTag(selectedTagId!!, latLng, tag, category)
                         } else {
-                            viewModel.savePlaceTag(latLng, tag, address) // Pass the address
-                            placeTags[latLng] = tag // Add new tag directly
+                            viewModel.savePlaceTag(latLng, tag, address, category)
                         }
                     }
                     showTagDialog = false
@@ -239,18 +376,47 @@ fun MapScreen(viewModel: ViewModel) {
     }
 }
 
+// Helper function to get a color based on category
+fun getMarkerColorForCategory(category: String): Int {
+    return when (category) {
+        "Vet Clinic" -> Color(0xFFD32F2F).toArgb()          // Deep red - urgency, medical
+        "Grooming Salon" -> Color(0xFF64B5F6).toArgb()      // Soft blue - clean, fresh
+        "Pet Hotel" -> Color(0xFFBA68C8).toArgb()           // Lavender - calm, cozy
+        "Dog Park" -> Color(0xFF81C784).toArgb()            // Soft green - nature
+        "Pet Store" -> Color(0xFFFFD54F).toArgb()           // Amber - shopping/friendly
+        "Training Center" -> Color(0xFFFF8A65).toArgb()     // Coral - action, motivation
+        "Pet-Friendly Cafe" -> Color(0xFF4DD0E1).toArgb()   // Aqua - relaxing, cool
+        "Pharmacy" -> Color(0xFF0D47A1).toArgb()            // Blue - clinical, calm
+        else -> Color(0xFFF33A6A).toArgb()                  // Default: light grey-blue
+    }
+}
+
+// Helper function to convert our RGB colors to Google Maps marker hues
+private fun getMarkerHueFromColor(color: Int): Float {
+    return when (color) {
+        Color(0xFFD32F2F).toArgb() -> BitmapDescriptorFactory.HUE_RED         // Vet Clinic
+        Color(0xFF64B5F6).toArgb() -> BitmapDescriptorFactory.HUE_AZURE       // Grooming Salon
+        Color(0xFFBA68C8).toArgb() -> BitmapDescriptorFactory.HUE_VIOLET      // Pet Hotel
+        Color(0xFF81C784).toArgb() -> BitmapDescriptorFactory.HUE_GREEN       // Dog Park
+        Color(0xFFFFD54F).toArgb() -> BitmapDescriptorFactory.HUE_YELLOW      // Pet Store
+        Color(0xFFFF8A65).toArgb() -> BitmapDescriptorFactory.HUE_ORANGE      // Training Center
+        Color(0xFF4DD0E1).toArgb() -> BitmapDescriptorFactory.HUE_CYAN        // Pet-Friendly Cafe
+        Color(0xFF0D47A1).toArgb() -> BitmapDescriptorFactory.HUE_BLUE        // Pharmacy
+        else -> BitmapDescriptorFactory.HUE_ROSE                                    // Default
+    }
+}
+
 @Composable
-fun SearchBar(
-    modifier: Modifier = Modifier,
-    onPlaceSelected: (LatLng, String) -> Unit
-) {
+fun SearchBar(modifier: Modifier = Modifier, onPlaceSelected: (LatLng, String, String?) -> Unit) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val place = Autocomplete.getPlaceFromIntent(result.data!!)
-            place.latLng?.let { onPlaceSelected(it, place.name ?: "Unnamed Place") }
+            place.latLng?.let {
+                onPlaceSelected(it, place.name ?: "Unnamed Place", place.address)
+            }
         } else if (result.resultCode == AutocompleteActivity.RESULT_ERROR && result.data != null) {
             val status = Autocomplete.getStatusFromIntent(result.data!!)
             Toast.makeText(context, "Error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
@@ -261,7 +427,7 @@ fun SearchBar(
         onClick = {
             val intent = Autocomplete.IntentBuilder(
                 AutocompleteActivityMode.OVERLAY,
-                listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG)
+                listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS)
             ).build(context)
             launcher.launch(intent)
         },
@@ -286,14 +452,36 @@ fun fetchPlaceDetails(placesClient: PlacesClient, placeId: String, callback: (Pl
         }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTagDialog(
-    placeName: String,
-    placeDetails: Place?,
-    onAddTag: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
+fun AddTagDialog(placeName: String, placeDetails: Place?, initialCategory: String, onAddTag: (String, String) -> Unit, onDismiss: () -> Unit) {
     var tag by remember { mutableStateOf(placeName) }
+    val defaultCategories = listOf("Vet Clinic", "Grooming Salon", "Pet Hotel", "Dog Park", "Pet Store", "Training Center", "Pet-Friendly Cafe", "Pharmacy", "Other")
+    var selectedCategory by remember { mutableStateOf(initialCategory.ifEmpty { defaultCategories.first() }) }
+    var isCategoryExpanded by remember { mutableStateOf(false) }
+    var addressText by remember { mutableStateOf(placeDetails?.address ?: "Address not available") }
+    val context = LocalContext.current
+
+    LaunchedEffect(placeDetails) {
+        if (placeDetails?.address == null && placeDetails?.latLng != null) {
+            // Perform reverse geocoding to get address
+            val geocoder = Geocoder(context)
+            try {
+                @Suppress("DEPRECATION") // For backward compatibility
+                val addresses = geocoder.getFromLocation(
+                    placeDetails.latLng!!.latitude,
+                    placeDetails.latLng!!.longitude,
+                    1
+                )
+                if (addresses != null && addresses.isNotEmpty()) {
+                    val address = addresses[0]
+                    addressText = address.getAddressLine(0) ?: "Unknown Address"
+                }
+            } catch (e: Exception) {
+                Log.e("AddTagDialog", "Error getting address: ${e.message}")
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -303,55 +491,208 @@ fun AddTagDialog(
                 TextField(
                     value = tag,
                     onValueChange = { tag = it },
-                    label = { Text("Tag Name") }
+                    label = { Text("Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ExposedDropdownMenuBox(expanded = isCategoryExpanded, onExpandedChange = { isCategoryExpanded = it }) {
+                    TextField(
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                            .focusProperties { canFocus = false },
+                        readOnly = true,
+                        value = selectedCategory,
+                        onValueChange = {},
+                        label = { Text("Category", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        colors = TextFieldDefaults.textFieldColors(
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            containerColor = MaterialTheme. colorScheme.surface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryExpanded) }
+                    )
+                    ExposedDropdownMenu (
+                        expanded = isCategoryExpanded,
+                        onDismissRequest = { isCategoryExpanded = false }
+                    ) {
+                        defaultCategories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category) },
+                                onClick = {
+                                    selectedCategory = category
+                                    isCategoryExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 if (placeDetails != null) {
                     Text("Address: ${placeDetails.address ?: "N/A"}", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
         confirmButton = {
-            Button(onClick = {
-                onAddTag(tag)
-                onDismiss()
-            }) {
-                Text("Save")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        onAddTag(tag, selectedCategory)
+                    }
+                ) {
+                    Text("Save")
+                }
             }
         },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
 
 @Composable
-fun TaggedPlaceItem(
-    tag: String,
-    location: LatLng,
-    onNavigate: () -> Unit,
-    onModify: () -> Unit,
-    onDelete: () -> Unit
+fun CategoryLegend(
+    selectedCategory: String? = null,
+    onCategorySelected: (String) -> Unit
 ) {
+    val categories = listOf(
+        "Vet Clinic", "Grooming Salon", "Pet Hotel", "Dog Park", "Pet Store", "Training Center", "Pet-Friendly Cafe", "Pharmacy", "Other"
+    )
+
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(categories) { category ->
+            val color = getMarkerColorForCategory(category)
+            val isSelected = category == selectedCategory
+
+            // Make each category item clickable
+            Box(
+                modifier = Modifier
+                    .clickable { onCategorySelected(category) }
+                    .background(
+                        color = if (isSelected) Color(color).copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .border(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) Color(color)
+                        else MaterialTheme.colorScheme.outlineVariant,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(Color(color), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) Color(color)
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TaggedPlaceItem(tag: String, category: String, location: LatLng, address: String, onNavigate: () -> Unit, onModify: () -> Unit, onDelete: () -> Unit) {
+    val categoryColor = getMarkerColorForCategory(category)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(vertical = 4.dp)
+            .border(
+                width = 1.dp,
+                color = Color(categoryColor).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp)
     ) {
-        Text(tag, style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Color indicator circle
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(Color(categoryColor), CircleShape)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                tag,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "Address: $address",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text = "Category: $category",
+            style = MaterialTheme.typography.titleMedium,
+            color = Color(categoryColor)
+        )
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = onNavigate) {
+            Button(
+                onClick = onNavigate,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
                 Text("Navigate")
             }
-            Button(onClick = onModify) {
+
+            OutlinedButton(onClick = onModify) {
                 Text("Edit")
             }
-            Button(onClick = onDelete) {
+
+            Button(
+                onClick = onDelete,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
                 Text("Delete")
             }
         }

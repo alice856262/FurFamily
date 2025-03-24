@@ -60,18 +60,6 @@ fun CreateCalendarEvent(
         title = { Text("Create Calendar Event") },
         text = {
             Column {
-//                TextField(
-//                    value = title,
-//                    onValueChange = { title = it },
-//                    label = { Text("Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-//                    colors = TextFieldDefaults.textFieldColors(
-//                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-//                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-//                        containerColor = MaterialTheme.colorScheme.surface,
-//                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-//                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                )
                 // Event Title Selection Dropdown
                 ExposedDropdownMenuBox(expanded = isTitleDropdownExpanded, onExpandedChange = { isTitleDropdownExpanded = it }) {
                     TextField(
