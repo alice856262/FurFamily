@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -29,14 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.furfamily.ViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserProfileSetting(viewModel: ViewModel, onDismiss: () -> Unit) {
-    val userProfile by viewModel.userProfile.observeAsState()
+fun UserProfileSetting(profileViewModel: ProfileViewModel, onDismiss: () -> Unit) {
+    val userProfile by profileViewModel.userProfile.observeAsState()
     var firstName by remember { mutableStateOf(userProfile?.firstName ?: "") }
     var lastName by remember { mutableStateOf(userProfile?.lastName ?: "") }
     var phone by remember { mutableStateOf(userProfile?.phone ?: "") }
@@ -172,7 +171,7 @@ fun UserProfileSetting(viewModel: ViewModel, onDismiss: () -> Unit) {
                             phone = phone,
                             selectedGender = selectedGender
                         )
-                        viewModel.updateUser(updatedProfile) {
+                        profileViewModel.updateUser(updatedProfile) {
                             Log.d("ProfileUpdate", "Profile updated successfully.")
                             onDismiss()
                         }

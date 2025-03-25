@@ -3,33 +3,15 @@ package com.example.furfamily.calendar
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -47,42 +29,37 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
-import com.example.furfamily.ViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.furfamily.getCurrentUserId
-import com.example.furfamily.nutrition.Feeding
-import com.example.furfamily.nutrition.Food
-import com.example.furfamily.profile.Pet
-import com.google.api.services.calendar.model.Event
-import java.text.SimpleDateFormat
+import com.example.furfamily.viewmodel.CalendarViewModel
+import com.example.furfamily.viewmodel.NutritionViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
+import com.example.furfamily.viewmodels.AuthViewModel
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun CalendarScreen(viewModel: ViewModel) {
+fun CalendarScreen() {
+    val calendarViewModel: CalendarViewModel = hiltViewModel()
+    val nutritionViewModel: NutritionViewModel = hiltViewModel()
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+
     val userId = getCurrentUserId()
     val context = LocalContext.current
-    val intentForUserResolution by viewModel.intentForUserResolution.observeAsState()
-    val allEvents by viewModel.calendarEvents.observeAsState(emptyList())
-    val calendarEvents by viewModel.calendarEventDates.observeAsState(emptyList())
-    val allEventsDates by viewModel.eventsDates.observeAsState(emptyList())
-    val feedingEvents by viewModel.feedingEvents.observeAsState(emptyList())
-    val pets by viewModel.pets.observeAsState(emptyList())
+    val intentForUserResolution by calendarViewModel.intentForUserResolution.observeAsState()
+    val allEvents by calendarViewModel.calendarEvents.observeAsState(emptyList())
+    val calendarEvents by calendarViewModel.calendarEventDates.observeAsState(emptyList())
+    val allEventsDates by calendarViewModel.eventsDates.observeAsState(emptyList())
+    val feedingEvents by nutritionViewModel.feedingEvents.observeAsState(emptyList())
+    val pets by profileViewModel.pets.observeAsState(emptyList())
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
@@ -96,10 +73,10 @@ fun CalendarScreen(viewModel: ViewModel) {
     // Load data when userId is available
     LaunchedEffect(userId) {
         userId?.let {
-            viewModel.loadPetsProfile(it)
-            viewModel.loadCalendarEvents()
-            viewModel.loadEventsForDate(selectedDate)
-            viewModel.loadFeedingEventsForDate(selectedDate)
+            profileViewModel.loadPetsProfile(it)
+            calendarViewModel.loadCalendarEvents()
+            calendarViewModel.loadEventsForDate(selectedDate)
+            nutritionViewModel.loadFeedingEventsForDate(selectedDate)
         }
     }
 
@@ -158,8 +135,8 @@ fun CalendarScreen(viewModel: ViewModel) {
                     eventsDates = eventsDates,
                     onDaySelected = { date ->
                         selectedDate = date
-                        viewModel.loadEventsForDate(date)
-                        viewModel.loadFeedingEventsForDate(date)
+                        calendarViewModel.loadEventsForDate(date)
+                        nutritionViewModel.loadFeedingEventsForDate(date)
                     },
                     onMonthChanged = { newDate ->
                         currentDate = newDate
@@ -167,7 +144,7 @@ fun CalendarScreen(viewModel: ViewModel) {
 
                         // Clear events when no date is selected
                         if (YearMonth.from(newDate) != YearMonth.from(today)) {
-                            viewModel.clearSelectedDateEvents()
+                            calendarViewModel.clearSelectedDateEvents()
                         }
                     }
                 )
@@ -279,7 +256,7 @@ fun CalendarScreen(viewModel: ViewModel) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            FeedingEventsList(filteredFeedingEvents, pets, viewModel)
+                            FeedingEventsList(filteredFeedingEvents, pets, nutritionViewModel)
                         }
                     }
                 }
@@ -289,7 +266,7 @@ fun CalendarScreen(viewModel: ViewModel) {
 
     if (showCreateEventDialog) {
         CreateCalendarEvent(
-            viewModel = viewModel,
+            calendarViewModel = calendarViewModel,
             userId = userId ?: "",
             pets = pets,
             onEventCreated = {
@@ -299,184 +276,5 @@ fun CalendarScreen(viewModel: ViewModel) {
                 showCreateEventDialog = false
             }
         )
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun MonthView(
-    currentDate: LocalDate,
-    selectedDate: LocalDate?,
-    eventsDates: List<LocalDate>, // List of dates with events for the current month
-    onDaySelected: (LocalDate) -> Unit,
-    onMonthChanged: (LocalDate) -> Unit
-) {
-    val yearMonth = remember(currentDate) { YearMonth.from(currentDate) }
-    val daysInMonth = remember(yearMonth) { yearMonth.lengthOfMonth() }
-    val firstDayOfWeek = remember(yearMonth) { yearMonth.atDay(1).dayOfWeek.value }
-    val daysOfWeek = remember { listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun") }
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(onClick = { onMonthChanged(currentDate.minusMonths(1)) }) {
-                Icon(Icons.Default.ArrowBack, "Previous Month")
-            }
-            Text(text = yearMonth.toString(), style = MaterialTheme.typography.titleLarge)
-            IconButton(onClick = { onMonthChanged(currentDate.plusMonths(1)) }) {
-                Icon(Icons.Default.ArrowForward, "Next Month")
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            for (day in daysOfWeek) {
-                Text(
-                    text = day,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(7),
-            contentPadding = PaddingValues(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(daysInMonth + firstDayOfWeek - 1) { index ->
-                if (index >= firstDayOfWeek - 1) {
-                    val day = index - firstDayOfWeek + 2
-                    val date = LocalDate.of(currentDate.year, currentDate.monthValue, day)
-                    DayCell(
-                        day = day,
-                        date = date,
-                        isSelected = selectedDate == date,
-                        hasEvent = eventsDates.contains(date), // Highlight days with events
-                        onClick = { onDaySelected(date) }
-                    )
-                } else {
-                    Spacer(modifier = Modifier.background(Color.Transparent))
-                }
-            }
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun DayCell(day: Int, date: LocalDate, isSelected: Boolean, hasEvent: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .background(
-                color = when {
-                    isSelected -> Color(0xFFFF6F61) // Selected day color
-                    hasEvent -> Color(0xFF81B29A) // Event day color
-                    else -> Color.Transparent
-                }
-            )
-            .border(
-                BorderStroke(
-                    2.dp,
-                    if (isSelected) Color(0xFF932020) else Color.Transparent
-                ),
-                RoundedCornerShape(50)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = day.toString(),
-            color = if (isSelected || hasEvent) Color.White else Color.Black
-        )
-    }
-}
-
-@Composable
-fun EventsList(events: List<Event>) {
-    LazyColumn {
-        items(events) { event ->
-            EventItem(event)
-        }
-    }
-}
-
-@Composable
-fun EventItem(event: Event) {
-    val startMillis = event.start?.dateTime?.value ?: event.start?.date?.value
-    val endMillis = event.end?.dateTime?.value ?: event.end?.date?.value
-
-    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-
-    val formattedStart = startMillis?.let {
-        formatter.format(Date(it))
-    } ?: "No Start Time"
-
-    val formattedEnd = endMillis?.let {
-        formatter.format(Date(it))
-    } ?: "No End Time"
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { /* Open event details */ },
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Start: $formattedStart", style = MaterialTheme.typography.bodySmall)
-            Text(text = "End: $formattedEnd", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-fun FeedingEventsList(feedingEvents: List<Feeding>, pets: List<Pet>, viewModel: ViewModel) {
-    LazyColumn {
-        items(feedingEvents) { feeding ->
-            val pet = pets.find { it.petId == feeding.petId }
-            var food by remember { mutableStateOf<Food?>(null) }
-
-            // Load food details asynchronously
-            LaunchedEffect(feeding.foodId) {
-                viewModel.getFoodById(feeding.foodId) { fetchedFood ->
-                    food = fetchedFood
-                }
-            }
-
-            FeedingEventItem(feeding, pet, food)
-        }
-    }
-}
-
-@Composable
-fun FeedingEventItem(feeding: Feeding, pet: Pet?, food: Food?) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { /* Open feeding details */ },
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Text(text = pet?.name ?: "Unknown Pet", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Food: ${food?.name ?: "Unknown Food"}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Meal Type: ${feeding.mealType}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Amount: ${feeding.amount} g", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Time: ${feeding.mealTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", style = MaterialTheme.typography.bodySmall)
-
-            if (feeding.notes.isNotEmpty()) {
-                Text(text = "Notes: ${feeding.notes}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-        }
     }
 }

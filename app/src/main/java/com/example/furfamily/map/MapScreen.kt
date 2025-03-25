@@ -1,19 +1,10 @@
 package com.example.furfamily.map
 
 import android.Manifest
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,22 +14,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -47,31 +31,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
-import com.example.furfamily.ViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.furfamily.viewmodel.MapViewModel
+import com.example.furfamily.viewmodel.NutritionViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
-import com.google.android.libraries.places.api.net.FetchPlaceRequest
-import com.google.android.libraries.places.api.net.PlacesClient
-import com.google.android.libraries.places.widget.Autocomplete
-import com.google.android.libraries.places.widget.AutocompleteActivity
-import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import kotlinx.coroutines.launch
 
 @Composable
-fun MapScreen(viewModel: ViewModel) {
+fun MapScreen() {
+    val mapViewModel: MapViewModel = hiltViewModel()
+
     val context = LocalContext.current
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
     val mapView = rememberMapViewWithLifecycle()
@@ -86,13 +67,13 @@ fun MapScreen(viewModel: ViewModel) {
     var selectedCategory by remember { mutableStateOf("") }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
-    val placeTags by viewModel.placeTags.collectAsState()
-    val placeCategories by viewModel.placeCategories.collectAsState()
+    val placeTags by mapViewModel.placeTags.collectAsState()
+    val placeCategories by mapViewModel.placeCategories.collectAsState()
     val markerMap = remember { mutableStateMapOf<LatLng, Marker>() }
 
     // Load initial tags and categories
     LaunchedEffect(Unit) {
-        viewModel.loadPlaceTags()
+        mapViewModel.loadPlaceTags()
     }
 
     // Fetch current location
@@ -308,7 +289,7 @@ fun MapScreen(viewModel: ViewModel) {
                     // Load the address for this location
                     LaunchedEffect(location) {
                         coroutineScope.launch {
-                            val placeTag = viewModel.getPlaceTagByLocation(location)
+                            val placeTag = mapViewModel.getPlaceTagByLocation(location)
                             address = placeTag?.address ?: "Address not available"
                         }
                     }
@@ -321,7 +302,7 @@ fun MapScreen(viewModel: ViewModel) {
                         onNavigate = { navigateToLocation(context, location) },
                         onModify = {
                             coroutineScope.launch {
-                                val (tagId, tagName) = viewModel.getTagDetailsForLocation(location)
+                                val (tagId, tagName) = mapViewModel.getTagDetailsForLocation(location)
                                 if (tagId != null) {
                                     selectedPlace = location
                                     placeName = tagName ?: tag
@@ -336,9 +317,9 @@ fun MapScreen(viewModel: ViewModel) {
                         },
                         onDelete = {
                             coroutineScope.launch {
-                                val (tagId, _) = viewModel.getTagDetailsForLocation(location)
+                                val (tagId, _) = mapViewModel.getTagDetailsForLocation(location)
                                 if (tagId != null) {
-                                    viewModel.deletePlaceTag(tagId)
+                                    mapViewModel.deletePlaceTag(tagId)
                                 } else {
                                     Toast.makeText(context, "Failed to delete tag: Tag ID not found.", Toast.LENGTH_SHORT).show()
                                 }
@@ -359,9 +340,9 @@ fun MapScreen(viewModel: ViewModel) {
                     selectedPlace?.let { latLng ->
                         val address = placeDetails?.address ?: "Unknown Address"
                         if (modifyTag && selectedTagId != null) {
-                            viewModel.modifyPlaceTag(selectedTagId!!, latLng, tag, category)
+                            mapViewModel.modifyPlaceTag(selectedTagId!!, latLng, tag, category)
                         } else {
-                            viewModel.savePlaceTag(latLng, tag, address, category)
+                            mapViewModel.savePlaceTag(latLng, tag, address, category)
                         }
                     }
                     showTagDialog = false
@@ -374,82 +355,6 @@ fun MapScreen(viewModel: ViewModel) {
             )
         }
     }
-}
-
-// Helper function to get a color based on category
-fun getMarkerColorForCategory(category: String): Int {
-    return when (category) {
-        "Vet Clinic" -> Color(0xFFD32F2F).toArgb()          // Deep red - urgency, medical
-        "Grooming Salon" -> Color(0xFF64B5F6).toArgb()      // Soft blue - clean, fresh
-        "Pet Hotel" -> Color(0xFFBA68C8).toArgb()           // Lavender - calm, cozy
-        "Dog Park" -> Color(0xFF81C784).toArgb()            // Soft green - nature
-        "Pet Store" -> Color(0xFFFFD54F).toArgb()           // Amber - shopping/friendly
-        "Training Center" -> Color(0xFFFF8A65).toArgb()     // Coral - action, motivation
-        "Pet-Friendly Cafe" -> Color(0xFF4DD0E1).toArgb()   // Aqua - relaxing, cool
-        "Pharmacy" -> Color(0xFF0D47A1).toArgb()            // Blue - clinical, calm
-        else -> Color(0xFFF33A6A).toArgb()                  // Default: light grey-blue
-    }
-}
-
-// Helper function to convert our RGB colors to Google Maps marker hues
-private fun getMarkerHueFromColor(color: Int): Float {
-    return when (color) {
-        Color(0xFFD32F2F).toArgb() -> BitmapDescriptorFactory.HUE_RED         // Vet Clinic
-        Color(0xFF64B5F6).toArgb() -> BitmapDescriptorFactory.HUE_AZURE       // Grooming Salon
-        Color(0xFFBA68C8).toArgb() -> BitmapDescriptorFactory.HUE_VIOLET      // Pet Hotel
-        Color(0xFF81C784).toArgb() -> BitmapDescriptorFactory.HUE_GREEN       // Dog Park
-        Color(0xFFFFD54F).toArgb() -> BitmapDescriptorFactory.HUE_YELLOW      // Pet Store
-        Color(0xFFFF8A65).toArgb() -> BitmapDescriptorFactory.HUE_ORANGE      // Training Center
-        Color(0xFF4DD0E1).toArgb() -> BitmapDescriptorFactory.HUE_CYAN        // Pet-Friendly Cafe
-        Color(0xFF0D47A1).toArgb() -> BitmapDescriptorFactory.HUE_BLUE        // Pharmacy
-        else -> BitmapDescriptorFactory.HUE_ROSE                                    // Default
-    }
-}
-
-@Composable
-fun SearchBar(modifier: Modifier = Modifier, onPlaceSelected: (LatLng, String, String?) -> Unit) {
-    val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val place = Autocomplete.getPlaceFromIntent(result.data!!)
-            place.latLng?.let {
-                onPlaceSelected(it, place.name ?: "Unnamed Place", place.address)
-            }
-        } else if (result.resultCode == AutocompleteActivity.RESULT_ERROR && result.data != null) {
-            val status = Autocomplete.getStatusFromIntent(result.data!!)
-            Toast.makeText(context, "Error: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    Button(
-        onClick = {
-            val intent = Autocomplete.IntentBuilder(
-                AutocompleteActivityMode.OVERLAY,
-                listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS)
-            ).build(context)
-            launcher.launch(intent)
-        },
-        modifier = modifier
-    ) {
-        Text("Click Here to Search Places")
-    }
-}
-
-fun fetchPlaceDetails(placesClient: PlacesClient, placeId: String, callback: (Place) -> Unit) {
-    val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
-    val request = FetchPlaceRequest.newInstance(placeId, placeFields)
-
-    placesClient.fetchPlace(request)
-        .addOnSuccessListener { response ->
-            callback(response.place)
-        }
-        .addOnFailureListener { exception ->
-            if (exception is com.google.android.gms.common.api.ApiException) {
-                println("Place not found: ${exception.message}")
-            }
-        }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -564,176 +469,4 @@ fun AddTagDialog(placeName: String, placeDetails: Place?, initialCategory: Strin
         },
         containerColor = MaterialTheme.colorScheme.surface
     )
-}
-
-@Composable
-fun CategoryLegend(
-    selectedCategory: String? = null,
-    onCategorySelected: (String) -> Unit
-) {
-    val categories = listOf(
-        "Vet Clinic", "Grooming Salon", "Pet Hotel", "Dog Park", "Pet Store", "Training Center", "Pet-Friendly Cafe", "Pharmacy", "Other"
-    )
-
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(categories) { category ->
-            val color = getMarkerColorForCategory(category)
-            val isSelected = category == selectedCategory
-
-            // Make each category item clickable
-            Box(
-                modifier = Modifier
-                    .clickable { onCategorySelected(category) }
-                    .background(
-                        color = if (isSelected) Color(color).copy(alpha = 0.2f)
-                        else MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .border(
-                        width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) Color(color)
-                        else MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(Color(color), CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) Color(color)
-                        else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TaggedPlaceItem(tag: String, category: String, location: LatLng, address: String, onNavigate: () -> Unit, onModify: () -> Unit, onDelete: () -> Unit) {
-    val categoryColor = getMarkerColorForCategory(category)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .border(
-                width = 1.dp,
-                color = Color(categoryColor).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Color indicator circle
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .background(Color(categoryColor), CircleShape)
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Text(
-                tag,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Address: $address",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Text(
-            text = "Category: $category",
-            style = MaterialTheme.typography.titleMedium,
-            color = Color(categoryColor)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Button(
-                onClick = onNavigate,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Navigate")
-            }
-
-            OutlinedButton(onClick = onModify) {
-                Text("Edit")
-            }
-
-            Button(
-                onClick = onDelete,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                )
-            ) {
-                Text("Delete")
-            }
-        }
-    }
-}
-
-fun navigateToLocation(context: Context, destination: LatLng) {
-    val uri = "google.navigation:q=${destination.latitude},${destination.longitude}"
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
-    intent.setPackage("com.google.android.apps.maps")
-    if (intent.resolveActivity(context.packageManager) != null) {
-        context.startActivity(intent)
-    } else {
-        Toast.makeText(context, "Google Maps is not installed.", Toast.LENGTH_SHORT).show()
-    }
-}
-
-fun requestLocationPermission(context: Context) {
-    ActivityCompat.requestPermissions(
-        (context as android.app.Activity),
-        arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ),
-        1000
-    )
-}
-
-@Composable
-fun rememberMapViewWithLifecycle(): MapView {
-    val context = LocalContext.current
-    val mapView = remember { MapView(context) }
-
-    DisposableEffect(Unit) {
-        mapView.onCreate(null)
-        mapView.onResume()
-
-        onDispose {
-            mapView.onPause()
-            mapView.onDestroy()
-        }
-    }
-    return mapView
 }

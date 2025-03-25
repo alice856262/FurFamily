@@ -47,18 +47,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import com.example.furfamily.ViewModel
+import com.example.furfamily.viewmodel.NutritionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddNewFood(
     onDismiss: () -> Unit,
     onSave: (Food) -> Unit,
-    viewModel: ViewModel,
     navController: NavController
 ) {
+    val nutritionViewModel: NutritionViewModel = hiltViewModel()
+
     var category by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var ingredient by remember { mutableStateOf("") }
@@ -141,13 +143,13 @@ fun AddNewFood(
                     Button(
                         onClick = {
                             showLoading = true
-                            viewModel.uploadImageToFirebase(uri,
+                            nutritionViewModel.uploadImageToFirebase(uri,
                                 onSuccess = { imageUrl ->
                                     // After successful upload, extract text from the image
-                                    viewModel.extractTextFromImage(context, uri,
+                                    nutritionViewModel.extractTextFromImage(context, uri,
                                         onSuccess = { extractedText ->
                                             // After successful text extraction, send text to OpenAI
-                                            viewModel.sendTextToOpenAI(extractedText,
+                                            nutritionViewModel.sendTextToOpenAI(extractedText,
                                                 onSuccess = { foodInfo ->
                                                     // Update UI fields with the returned Food object
                                                     name = foodInfo.name
@@ -414,7 +416,7 @@ fun EditFoodDialog(food: Food, onDismiss: () -> Unit, onSave: (Food) -> Unit) {
         title = { Text("Edit Food Details") },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()) // Allows scrolling
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 // Food Fields for editing
                 Text(

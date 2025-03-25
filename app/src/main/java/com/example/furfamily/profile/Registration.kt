@@ -38,10 +38,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.furfamily.R
 import com.example.furfamily.Routes
-import com.example.furfamily.ViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
+import com.example.furfamily.viewmodels.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -54,8 +56,11 @@ import java.util.Locale
 @Composable
 fun RegistrationScreen(
     createUserWithEmailPassword: (String, String, String, String, String, String, Date) -> Unit,
-    navController: NavController, viewModel: ViewModel
+    navController: NavController
 ) {
+    val authViewModel: AuthViewModel = hiltViewModel()
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+
     var firstName by rememberSaveable { mutableStateOf("") }
     var lastName by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -237,7 +242,7 @@ fun RegistrationScreen(
             onClick = {
                 if ((password.length >= 8) && (isRegFormValid)) {
                     if (password == confirmPassword) {
-                        createUserWithEmailPassword(firstName, lastName, email, password, selectedGender, phone, Date(birthDate), navController, viewModel)
+                        createUserWithEmailPassword(firstName, lastName, email, password, selectedGender, phone, Date(birthDate), navController, profileViewModel)
                         passwordError = ""
                     } else {
                         passwordError = "Passwords do not match!"
@@ -268,9 +273,16 @@ fun isRegFormValid(firstName: String, lastName: String, email: String, password:
     return firstName.isNotEmpty() && lastName.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty() && phone.isNotEmpty()
 }
 
-fun createUserWithEmailPassword(firstName: String, lastName: String, email: String, password: String,
-                                selectedGender: String, phone: String, birthDate: Date, navController: NavController,
-                                viewModel: ViewModel
+fun createUserWithEmailPassword(
+    firstName: String,
+    lastName: String,
+    email: String,
+    password: String,
+    selectedGender: String,
+    phone: String,
+    birthDate: Date,
+    navController: NavController,
+    profileViewModel: ProfileViewModel
 ) {
     val auth = FirebaseAuth.getInstance()
     auth.createUserWithEmailAndPassword(email, password).addOnCompleteListener { task ->
@@ -289,7 +301,7 @@ fun createUserWithEmailPassword(firstName: String, lastName: String, email: Stri
                     birthDate = birthDate,
                     profileImageUrl = ""
                 )
-                viewModel.insertUser(userProfile)
+                profileViewModel.insertUser(userProfile)
                 navController.navigate(Routes.Login.value)  // Navigate to login screen after successful registration
             } else {
                 Log.e("Registration", "Failed to retrieve Firebase user ID.")

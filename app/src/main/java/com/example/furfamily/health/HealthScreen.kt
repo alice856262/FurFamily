@@ -44,10 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberImagePainter
-import com.example.furfamily.ViewModel
 import com.example.furfamily.profile.Pet
+import com.example.furfamily.viewmodel.HealthViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
+import com.example.furfamily.viewmodels.AuthViewModel
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -60,16 +63,19 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavController) {
-    val pets by viewModel.pets.observeAsState(emptyList())
-    val healthRecords by viewModel.healthRecords.observeAsState(emptyList())
-    var selectedPet by remember { mutableStateOf<Pet?>(null) } // Use nullable Pet
+fun HealthScreen(userId: String, navController: NavController) {
+    val healthViewModel: HealthViewModel = hiltViewModel()
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+
+    val pets by profileViewModel.pets.observeAsState(emptyList())
+    val healthRecords by healthViewModel.healthRecords.observeAsState(emptyList())
+    var selectedPet by remember { mutableStateOf<Pet?>(null) }
     val lineEntries = remember { mutableStateListOf<Entry>() }
     val dateLabels = remember { mutableStateListOf<String>() }
 
     // Load pets when the screen is displayed
     LaunchedEffect(userId) {
-        viewModel.fetchPets(userId)
+        profileViewModel.fetchPets(userId)
     }
 
     // Automatically select the first pet when pets are loaded
@@ -82,7 +88,7 @@ fun HealthScreen(viewModel: ViewModel, userId: String, navController: NavControl
     // Fetch health records for the selected pet
     LaunchedEffect(selectedPet) {
         selectedPet?.let { pet ->
-            viewModel.fetchHealthRecords(userId, pet.petId)
+            healthViewModel.fetchHealthRecords(userId, pet.petId)
         }
     }
 

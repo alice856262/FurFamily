@@ -38,15 +38,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.furfamily.R
 import com.example.furfamily.Routes
-import com.example.furfamily.ViewModel
+import com.example.furfamily.viewmodels.AuthViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.common.api.ApiException
@@ -57,9 +57,10 @@ import com.google.firebase.auth.FirebaseAuth
 @Composable
 fun LoginScreen(
     loginWithEmailPassword: (String, String, (String) -> Unit) -> Unit,
-    navController: NavController,
-    viewModel: ViewModel
+    navController: NavController
 ) {
+    val authViewModel: AuthViewModel = hiltViewModel()
+
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -67,14 +68,14 @@ fun LoginScreen(
     var loginError by remember { mutableStateOf("") }
 
     // Google Sign-In intent handling
-    val signInIntent by viewModel.googleSignInIntent.observeAsState()
+    val signInIntent by authViewModel.googleSignInIntent.observeAsState()
     val googleSignInLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             Log.d("handleSignInResult", "handleSignInResult")
-            handleSignInResult(task, viewModel, navController)
+            handleSignInResult(task, authViewModel, navController)
         }
     }
 
@@ -89,7 +90,7 @@ fun LoginScreen(
         PasswordResetDialog(
             initialEmail = email,  // Pass the current email state
             onDismiss = { showResetPasswordDialog = false },
-            viewModel = viewModel
+            authViewModel = authViewModel
         )
     }
 
@@ -190,7 +191,7 @@ fun LoginScreen(
 
         // Google Sign-In Button
         Button(
-            onClick = { viewModel.signInWithGoogle() },
+            onClick = { authViewModel.signInWithGoogle() },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
@@ -229,9 +230,7 @@ fun LoginScreen(
     }
 }
 
-fun loginWithEmailPassword(email: String, password: String,
-                           navController: NavController,
-                           onLoginError: (String) -> Unit) {
+fun loginWithEmailPassword(email: String, password: String, navController: NavController, onLoginError: (String) -> Unit) {
     val auth = FirebaseAuth.getInstance()
     Log.d("Login auth", "auth: $auth")
     auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
@@ -254,7 +253,7 @@ fun loginWithEmailPassword(email: String, password: String,
 }
 
 @Composable
-fun PasswordResetDialog(initialEmail: String, onDismiss: () -> Unit, viewModel: ViewModel) {
+fun PasswordResetDialog(initialEmail: String, onDismiss: () -> Unit, authViewModel: AuthViewModel) {
     var email by rememberSaveable { mutableStateOf(initialEmail) }
     AlertDialog(
         onDismissRequest = { onDismiss() },
@@ -273,7 +272,7 @@ fun PasswordResetDialog(initialEmail: String, onDismiss: () -> Unit, viewModel: 
         confirmButton = {
             Button(
                 onClick = {
-                    viewModel.sendPasswordResetEmail(email)
+                    authViewModel.sendPasswordResetEmail(email)
                     onDismiss()
                 }
             ) { Text("Send Email") }
@@ -284,16 +283,16 @@ fun PasswordResetDialog(initialEmail: String, onDismiss: () -> Unit, viewModel: 
     )
 }
 
-fun handleSignInResult(task: Task<GoogleSignInAccount>, viewModel: ViewModel, navController: NavController) {
+fun handleSignInResult(task: Task<GoogleSignInAccount>, authViewModel: AuthViewModel, navController: NavController) {
     task.addOnSuccessListener { account ->
         // Success, proceed with account
         Log.d("SignIn", "Google sign-in succeeded: ${account.email}")
 
         account.idToken?.let { idToken ->
             // First authenticate with Firebase
-            viewModel.firebaseAuthWithGoogle(idToken, account, {
+            authViewModel.firebaseAuthWithGoogle(idToken, account, {
                 // Authentication successful, now fetch or create the user profile
-                viewModel.fetchOrCreateUserProfile(account) { userProfile ->
+                authViewModel.fetchOrCreateUserProfile(account) { userProfile ->
                     // Navigation on success
                     navController.navigate(Routes.CalendarScreen.value) {
                         popUpTo(navController.graph.startDestinationId) {
@@ -306,19 +305,6 @@ fun handleSignInResult(task: Task<GoogleSignInAccount>, viewModel: ViewModel, na
                 Log.e("FirebaseAuth", "Authentication failed", exception)
             })
         } ?: Log.e("SignIn", "No ID token available")
-
-//        viewModel.fetchOrCreateUserProfile(account) { userProfile ->
-//            account.idToken?.let { token ->
-//                viewModel.firebaseAuthWithGoogle(token, userProfile) {
-//                    // Navigation on success
-//                    navController.navigate(Routes.CalendarScreen.value) {
-//                        popUpTo(navController.graph.startDestinationId) {
-//                            inclusive = true
-//                        }
-//                    }
-//                }
-//            } ?: Log.e("SignIn", "No ID token available")
-//        }
     }.addOnFailureListener { exception ->
         // Log detailed error
         if (exception is ApiException) {

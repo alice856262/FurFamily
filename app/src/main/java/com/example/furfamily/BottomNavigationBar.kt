@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -21,7 +22,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.furfamily.calendar.CalendarScreen
-import com.example.furfamily.calendar.CreateCalendarEvent
 import com.example.furfamily.health.CreateHealthRecord
 import com.example.furfamily.health.HealthRecord
 import com.example.furfamily.health.HealthScreen
@@ -33,6 +33,10 @@ import com.example.furfamily.profile.LoginScreen
 import com.example.furfamily.profile.ProfileSettingsScreen
 import com.example.furfamily.profile.RegistrationScreen
 import com.example.furfamily.profile.loginWithEmailPassword
+import com.example.furfamily.viewmodel.CalendarViewModel
+import com.example.furfamily.viewmodel.NutritionViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
+import com.example.furfamily.viewmodels.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -73,7 +77,9 @@ fun BottomNavigationBar(navController: NavController) {
 
 @RequiresApi(64)
 @Composable
-fun HomeScreen(viewModel: ViewModel) {
+fun HomeScreen() {
+    val authViewModel: AuthViewModel = hiltViewModel()
+    val calendarViewModel: CalendarViewModel = hiltViewModel()
     val navController = rememberNavController()
     val currentRoute = getCurrentRoute(navController)
     Scaffold(
@@ -93,35 +99,34 @@ fun HomeScreen(viewModel: ViewModel) {
                     loginWithEmailPassword = { email, password, onLoginError ->
                         loginWithEmailPassword(email, password, navController, onLoginError)
                     },
-                    navController = navController,
-                    viewModel = viewModel
+                    navController = navController
                 )
             }
             composable(Routes.Registration.value) {
                 RegistrationScreen(
                     createUserWithEmailPassword = { firstName, lastName, email, password, gender, phone, birthDate -> },
-                    navController = navController,
-                    viewModel = viewModel
+                    navController = navController
                 )
             }
             composable(Routes.CalendarScreen.value) {
-                CalendarScreen(viewModel)
+                CalendarScreen()
             }
             composable(Routes.HealthScreen.value) {
                 val userId = getCurrentUserId()
                 if (userId != null) {
-                    HealthScreen(viewModel, userId, navController)
+                    HealthScreen(userId, navController)
                 }
             }
             composable("${Routes.NewHealthRecord.value}/{petId}") { backStackEntry ->
                 val petId = backStackEntry.arguments?.getString("petId")
                 val userId = getCurrentUserId()
+                val profileViewModel: ProfileViewModel = hiltViewModel()
 
                 if (userId != null && petId != null) {
                     CreateHealthRecord(
                         healthRecord = HealthRecord(),
                         userId = userId,
-                        pets = viewModel.pets.value ?: emptyList(),
+                        pets = profileViewModel.pets.value ?: emptyList(),
                         onSaveMetrics = { updatedRecord ->
                             // Handle the saved record
                         },
@@ -130,29 +135,31 @@ fun HomeScreen(viewModel: ViewModel) {
                 }
             }
             composable(Routes.Nutrition.value) {
-                NutritionScreen(viewModel, navController)
+                NutritionScreen(navController)
             }
             composable(Routes.NewFood.value) {
+                val nutritionViewModel: NutritionViewModel = hiltViewModel()
                 AddNewFood(
                     onDismiss = { navController.popBackStack() },
-                    onSave = { food -> viewModel.addNewFood(food) },
-                    viewModel = viewModel,
+                    onSave = { food ->
+                        nutritionViewModel.addNewFood(food)
+                    },
                     navController = navController
                 )
             }
             composable(Routes.Map.value) {
-                MapScreen(viewModel)
+                MapScreen()
             }
             composable(Routes.Profile.value) {
                 val userId = getCurrentUserId()
                 if (userId != null) {
-                    ProfileSettingsScreen(navController, viewModel, userId)
+                    ProfileSettingsScreen(navController, userId)
                 }
             }
             composable(Routes.AddEditPet.value) {
                 val userId = getCurrentUserId()
                 if (userId != null) {
-                    AddEditPetScreen(navController, viewModel, userId)
+                    AddEditPetScreen(navController, userId)
                 }
             }
         }

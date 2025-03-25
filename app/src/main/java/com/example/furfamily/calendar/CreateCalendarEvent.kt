@@ -29,21 +29,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.furfamily.ViewModel
 import com.example.furfamily.profile.Pet
+import com.example.furfamily.viewmodel.CalendarViewModel
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateCalendarEvent(
-    viewModel: ViewModel,
+    calendarViewModel: CalendarViewModel,
     userId: String,
     pets: List<Pet>,
     onEventCreated: () -> Unit,
     onDismiss: () -> Unit
 ) {
-//    var title by remember { mutableStateOf("") }
     val defaultTitles = listOf("Vet Appointment", "Grooming", "Playdate", "Training Session", "Medication", "Other")
     var selectedTitle by remember { mutableStateOf(defaultTitles.first()) }
     var customTitle by remember { mutableStateOf("") }
@@ -212,7 +211,7 @@ fun CreateCalendarEvent(
                             endTime = endTime,
                             location = location
                         )
-                        viewModel.createEvent(event) {
+                        calendarViewModel.createEvent(event) {
                             onEventCreated() // Notify the screen to hide the create event section
                         }
                     },

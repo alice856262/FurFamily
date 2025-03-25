@@ -54,13 +54,7 @@ import java.util.Locale
 @RequiresApi(0)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateHealthRecord(
-    healthRecord: HealthRecord,
-    userId: String,
-    pets: List<Pet>,
-    onSaveMetrics: (HealthRecord) -> Unit,
-    navController: NavController
-) {
+fun CreateHealthRecord(healthRecord: HealthRecord, userId: String, pets: List<Pet>, onSaveMetrics: (HealthRecord) -> Unit, navController: NavController) {
     val calendar = Calendar.getInstance()
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = healthRecord.entryDate.time

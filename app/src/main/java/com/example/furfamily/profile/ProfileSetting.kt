@@ -31,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -67,10 +66,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberImagePainter
 import com.example.furfamily.Routes
-import com.example.furfamily.ViewModel
+import com.example.furfamily.viewmodel.ProfileViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.auth.FirebaseAuth
@@ -83,17 +83,15 @@ import java.util.Locale
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileSettingsScreen(
-    navController: NavController,
-    viewModel: ViewModel,
-    userId: String
-) {
+fun ProfileSettingsScreen(navController: NavController, userId: String) {
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+
     LaunchedEffect(userId) {
-        viewModel.loadUserProfile(userId)
-        viewModel.loadPetsProfile(userId)
+        profileViewModel.loadUserProfile(userId)
+        profileViewModel.loadPetsProfile(userId)
     }
 
-    val pets by viewModel.pets.observeAsState(emptyList())
+    val pets by profileViewModel.pets.observeAsState(emptyList())
     var selectedPet by remember { mutableStateOf<Pet?>(null) }  // Nullable Pet for initial state
     var showUserProfileSettings by remember { mutableStateOf(false) }
     var question by remember { mutableStateOf("") }
@@ -213,7 +211,7 @@ fun ProfileSettingsScreen(
 
                                     val userIdFromAuth = FirebaseAuth.getInstance().currentUser?.uid
                                     if (userIdFromAuth != null) {
-                                        viewModel.askPetAdvice(
+                                        profileViewModel.askPetAdvice(
                                             userId = userIdFromAuth,
                                             pet = pet,
                                             question = question,
@@ -274,7 +272,7 @@ fun ProfileSettingsScreen(
                     Button(
                         onClick = {
                             selectedPet?.let {
-                                viewModel.setSelectedPet(it) // Set the selected pet in the ViewModel
+                                profileViewModel.setSelectedPet(it) // Set the selected pet in the ViewModel
                                 navController.navigate(Routes.AddEditPet.value) // Navigate with Edit functionality
                             }
                         },
@@ -286,7 +284,7 @@ fun ProfileSettingsScreen(
 
                     Button(
                         onClick = {
-                            viewModel.setSelectedPet(null) // Clear selected pet
+                            profileViewModel.setSelectedPet(null) // Clear selected pet
                             navController.navigate(Routes.AddEditPet.value) // Navigate with Add functionality
                         },
                         modifier = Modifier.height(46.dp).width(190.dp)
@@ -319,7 +317,7 @@ fun ProfileSettingsScreen(
 
     if (showUserProfileSettings) {
         UserProfileSetting(
-            viewModel = viewModel,
+            profileViewModel = profileViewModel,
             onDismiss = { showUserProfileSettings = false }
         )
     }
@@ -328,8 +326,9 @@ fun ProfileSettingsScreen(
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddEditPetScreen(navController: NavController, viewModel: ViewModel, userId: String) {
-    val selectedPet by viewModel.selectedPet.observeAsState()
+fun AddEditPetScreen(navController: NavController, userId: String) {
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+    val selectedPet by profileViewModel.selectedPet.observeAsState()
     val isEditing = selectedPet != null
 
     // Form fields
@@ -355,7 +354,7 @@ fun AddEditPetScreen(navController: NavController, viewModel: ViewModel, userId:
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
             uri?.let {
-                viewModel.uploadPetImage(userId, newPetId, it) { uploadedImageUrl ->
+                profileViewModel.uploadPetImage(userId, newPetId, it) { uploadedImageUrl ->
                     profileImageUrl = uploadedImageUrl // Update the profileImageUrl after uploading
                 }
             }
@@ -570,9 +569,9 @@ fun AddEditPetScreen(navController: NavController, viewModel: ViewModel, userId:
                             )
 
                             if (isEditing) {
-                                viewModel.updatePet(userId, petToSave)
+                                profileViewModel.updatePet(userId, petToSave)
                             } else {
-                                viewModel.addPet(userId, petToSave)
+                                profileViewModel.addPet(userId, petToSave)
                             }
 
                             navController.popBackStack()
