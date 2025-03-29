@@ -103,7 +103,7 @@ fun FeedingEventItem(feeding: Feeding, pet: Pet?, food: Food?) {
             Text(text = "Food: ${food?.name ?: "Unknown Food"}", style = MaterialTheme.typography.bodySmall)
             Text(text = "Meal Type: ${feeding.mealType}", style = MaterialTheme.typography.bodySmall)
             Text(text = "Amount: ${feeding.amount} g", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Time: ${feeding.mealTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", style = MaterialTheme.typography.bodySmall)
+//            Text(text = "Time: ${feeding.mealTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", style = MaterialTheme.typography.bodySmall)
 
             if (feeding.notes.isNotEmpty()) {
                 Text(text = "Notes: ${feeding.notes}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)

@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -55,11 +58,14 @@ fun MonthView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(onClick = { onMonthChanged(currentDate.minusMonths(1)) }) {
-                Icon(Icons.Default.ArrowBack, "Previous Month")
+                Icon(Icons.Rounded.KeyboardArrowLeft, contentDescription = "Previous Month")
             }
-            Text(text = yearMonth.toString(), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                style = MaterialTheme.typography.titleLarge
+            )
             IconButton(onClick = { onMonthChanged(currentDate.plusMonths(1)) }) {
-                Icon(Icons.Default.ArrowForward, "Next Month")
+                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = "Next Month")
             }
         }
         Row(

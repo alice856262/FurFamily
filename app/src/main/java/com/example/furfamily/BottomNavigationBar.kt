@@ -28,7 +28,8 @@ import com.example.furfamily.health.HealthScreen
 import com.example.furfamily.map.MapScreen
 import com.example.furfamily.nutrition.AddNewFood
 import com.example.furfamily.nutrition.NutritionScreen
-import com.example.furfamily.profile.AddEditPetScreen
+import com.example.furfamily.profile.AddPetScreen
+import com.example.furfamily.profile.EditPetScreen
 import com.example.furfamily.profile.LoginScreen
 import com.example.furfamily.profile.ProfileSettingsScreen
 import com.example.furfamily.profile.RegistrationScreen
@@ -120,13 +121,11 @@ fun HomeScreen() {
             composable("${Routes.NewHealthRecord.value}/{petId}") { backStackEntry ->
                 val petId = backStackEntry.arguments?.getString("petId")
                 val userId = getCurrentUserId()
-                val profileViewModel: ProfileViewModel = hiltViewModel()
 
                 if (userId != null && petId != null) {
                     CreateHealthRecord(
                         healthRecord = HealthRecord(),
                         userId = userId,
-                        pets = profileViewModel.pets.value ?: emptyList(),
                         onSaveMetrics = { updatedRecord ->
                             // Handle the saved record
                         },
@@ -156,10 +155,17 @@ fun HomeScreen() {
                     ProfileSettingsScreen(navController, userId)
                 }
             }
-            composable(Routes.AddEditPet.value) {
+            composable(Routes.AddPet.value) {
                 val userId = getCurrentUserId()
                 if (userId != null) {
-                    AddEditPetScreen(navController, userId)
+                    AddPetScreen(navController, userId)
+                }
+            }
+            composable("${Routes.EditPet.value}/{petId}") { backStackEntry ->
+                val userId = getCurrentUserId()
+                val petId = backStackEntry.arguments?.getString("petId")
+                if (userId != null && petId != null) {
+                    EditPetScreen(navController, userId, petId)
                 }
             }
         }

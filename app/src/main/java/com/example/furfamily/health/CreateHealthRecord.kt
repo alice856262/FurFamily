@@ -35,7 +35,9 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,8 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.furfamily.profile.Pet
+import com.example.furfamily.viewmodel.ProfileViewModel
 import com.google.firebase.database.FirebaseDatabase
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -54,18 +58,17 @@ import java.util.Locale
 @RequiresApi(0)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateHealthRecord(healthRecord: HealthRecord, userId: String, pets: List<Pet>, onSaveMetrics: (HealthRecord) -> Unit, navController: NavController) {
+fun CreateHealthRecord(healthRecord: HealthRecord, userId: String, onSaveMetrics: (HealthRecord) -> Unit, navController: NavController) {
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+    val pets by profileViewModel.pets.observeAsState(emptyList())
     val calendar = Calendar.getInstance()
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = healthRecord.entryDate.time
-    )
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = healthRecord.entryDate.time)
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var entryDate by rememberSaveable { mutableStateOf(healthRecord.entryDate.time) }
 
     // Local state for form fields
     var selectedPet by remember { mutableStateOf<Pet?>(null) } // Track selected pet
     var isPetDropdownExpanded by remember { mutableStateOf(false) }
-
     var weight by rememberSaveable { mutableStateOf(healthRecord.weight ?: 0f) }
     var temperature by rememberSaveable { mutableStateOf(healthRecord.temperature ?: 0f) }
     var rbc by rememberSaveable { mutableStateOf(healthRecord.rbc ?: 0f) }
@@ -76,6 +79,10 @@ fun CreateHealthRecord(healthRecord: HealthRecord, userId: String, pets: List<Pe
     var alt by rememberSaveable { mutableStateOf(healthRecord.alt ?: 0f) }
     var bun by rememberSaveable { mutableStateOf(healthRecord.bun ?: 0f) }
     var scr by rememberSaveable { mutableStateOf(healthRecord.scr ?: 0f) }
+
+    LaunchedEffect(userId) {
+        profileViewModel.loadPetsProfile(userId)
+    }
 
     Scaffold(
         topBar = {
@@ -214,6 +221,9 @@ fun CreateHealthRecord(healthRecord: HealthRecord, userId: String, pets: List<Pe
                             userRecordsRef.child(it).setValue(record)
                                 .addOnSuccessListener {
                                     onSaveMetrics(record)
+                                    navController.previousBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set("healthRecordSaved", selectedPet?.name ?: "")
                                     navController.popBackStack()
                                 }
                                 .addOnFailureListener { exception ->

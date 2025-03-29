@@ -103,6 +103,9 @@ fun ProfileSettingsScreen(navController: NavController, userId: String) {
     LaunchedEffect(pets) {
         if (selectedPet == null && pets.isNotEmpty()) {
             selectedPet = pets.first()
+        } else if (selectedPet != null) {
+            // Update selected pet if it exists in the updated list
+            selectedPet = pets.find { it.petId == selectedPet?.petId } ?: selectedPet
         }
     }
 
@@ -272,8 +275,7 @@ fun ProfileSettingsScreen(navController: NavController, userId: String) {
                     Button(
                         onClick = {
                             selectedPet?.let {
-                                profileViewModel.setSelectedPet(it) // Set the selected pet in the ViewModel
-                                navController.navigate(Routes.AddEditPet.value) // Navigate with Edit functionality
+                                navController.navigate("${Routes.EditPet.value}/${it.petId}")
                             }
                         },
                         enabled = selectedPet != null,
@@ -284,8 +286,7 @@ fun ProfileSettingsScreen(navController: NavController, userId: String) {
 
                     Button(
                         onClick = {
-                            profileViewModel.setSelectedPet(null) // Clear selected pet
-                            navController.navigate(Routes.AddEditPet.value) // Navigate with Add functionality
+                            navController.navigate(Routes.AddPet.value)
                         },
                         modifier = Modifier.height(46.dp).width(190.dp)
                     ) {
@@ -323,265 +324,295 @@ fun ProfileSettingsScreen(navController: NavController, userId: String) {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddEditPetScreen(navController: NavController, userId: String) {
-    val profileViewModel: ProfileViewModel = hiltViewModel()
-    val selectedPet by profileViewModel.selectedPet.observeAsState()
-    val isEditing = selectedPet != null
-
-    // Form fields
-    var profileImageUrl by remember { mutableStateOf(selectedPet?.profileImageUrl ?: "") }
-    var name by remember { mutableStateOf(selectedPet?.name ?: "") }
-    var type by remember { mutableStateOf(selectedPet?.type ?: "Please choose one") }
-    val typeOptions = listOf("Dog", "Cat")
-    var isTypeExpanded by remember { mutableStateOf(false) }
-    var breed by remember { mutableStateOf(selectedPet?.breed ?: "") }
-    var selectedSex by remember { mutableStateOf(selectedPet?.selectedSex ?: "Please choose one") }
-    val sexOptions = listOf("Neutered male", "Spayed female", "Intact male", "Intact female")
-    var isSexExpanded by remember { mutableStateOf(false) }
-    var birthDate by remember { mutableStateOf(selectedPet?.birthDate ?: Date()) }
-    val calendar = Calendar.getInstance()
-    val datePickerState = rememberDatePickerState(birthDate.time)
-    var showDatePicker by remember { mutableStateOf(false) }
-
-    // Generate a new petId if not editing
-    val newPetId = selectedPet?.petId ?: FirebaseDatabase.getInstance().getReference("pets/$userId").push().key!!
-
-    // Image picker launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                profileViewModel.uploadPetImage(userId, newPetId, it) { uploadedImageUrl ->
-                    profileImageUrl = uploadedImageUrl // Update the profileImageUrl after uploading
-                }
-            }
-        }
-    )
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (isEditing) "Edit Pet" else "Add Pet") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
-        content = { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .padding(16.dp)
-                    .fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Pet Profile Image
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        contentAlignment = Alignment.BottomEnd,
-                        modifier = Modifier.size(150.dp)
-                    ) {
-                        Image(
-                            painter = rememberImagePainter(profileImageUrl),
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.LightGray, CircleShape)
-                                .clip(CircleShape)
-                        )
-                        IconButton(
-                            onClick = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier
-                                .size(30.dp)
-                                .padding(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AddCircle,
-                                contentDescription = "Pick Image"
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Pet Name
-                TextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Pet Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    colors = TextFieldDefaults.textFieldColors(
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Pet Type
-                ExposedDropdownMenuBox(expanded = isTypeExpanded, onExpandedChange = { isTypeExpanded = it }) {
-                    TextField(
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        readOnly = true,
-                        value = type,
-                        onValueChange = {},
-                        label = { Text("Type", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        colors = TextFieldDefaults.textFieldColors(
-                            focusedLabelColor = MaterialTheme.colorScheme.primary,
-                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTypeExpanded) }
-                    )
-                    ExposedDropdownMenu(
-                        expanded = isTypeExpanded,
-                        onDismissRequest = { isTypeExpanded = false }
-                    ) {
-                        typeOptions.forEach { selectionOption ->
-                            DropdownMenuItem(
-                                text = { Text(selectionOption) },
-                                onClick = {
-                                    type = selectionOption
-                                    isTypeExpanded = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Pet Breed
-                TextField(
-                    value = breed,
-                    onValueChange = { breed = it },
-                    label = { Text("Breed", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    colors = TextFieldDefaults.textFieldColors(
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Pet Sex
-                ExposedDropdownMenuBox(expanded = isSexExpanded, onExpandedChange = { isSexExpanded = it }) {
-                    TextField(
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        readOnly = true,
-                        value = selectedSex,
-                        onValueChange = {},
-                        label = { Text("Sex", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        colors = TextFieldDefaults.textFieldColors(
-                            focusedLabelColor = MaterialTheme.colorScheme.primary,
-                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isSexExpanded) }
-                    )
-                    ExposedDropdownMenu(
-                        expanded = isSexExpanded,
-                        onDismissRequest = { isSexExpanded = false }
-                    ) {
-                        sexOptions.forEach { selectionOption ->
-                            DropdownMenuItem(
-                                text = { Text(selectionOption) },
-                                onClick = {
-                                    selectedSex = selectionOption
-                                    isSexExpanded = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Pet Birth Date
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedButton(onClick = { showDatePicker = true },
-                        modifier = Modifier
-                            .weight (1f)
-                            .height(46.dp)
-                    ) { Text("Enter Date of Birth") }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(birthDate),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                if (showDatePicker) {
-                    DatePickerDialog(
-                        onDismissRequest = { showDatePicker = false },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                showDatePicker = false
-                                birthDate = Date(datePickerState.selectedDateMillis ?: birthDate.time)
-                            }) { Text("OK") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-                        }
-                    ) {
-                        DatePicker(state = datePickerState)
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Save Button
-                Button(
-                    onClick = {
-                        if (name.isNotBlank() && type.isNotBlank() && breed.isNotBlank()) {
-                            val petToSave = Pet(
-                                petId = newPetId,
-                                name = name,
-                                type = type,
-                                breed = breed,
-                                selectedSex = selectedSex,
-                                birthDate = birthDate,
-                                profileImageUrl = profileImageUrl
-                            )
-
-                            if (isEditing) {
-                                profileViewModel.updatePet(userId, petToSave)
-                            } else {
-                                profileViewModel.addPet(userId, petToSave)
-                            }
-
-                            navController.popBackStack()
-                        }
-                    },
-                    modifier = Modifier.height(46.dp).width(190.dp)
-                ) {
-                    Text(if (isEditing) "Save Changes" else "Save New Pet")
-                }
-            }
-        }
-    )
-}
+//@RequiresApi(Build.VERSION_CODES.O)
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun AddEditPetScreen(navController: NavController, userId: String) {
+//    val profileViewModel: ProfileViewModel = hiltViewModel()
+//    val pets by profileViewModel.pets.observeAsState(emptyList())
+//
+//    // Get petId from navigation arguments
+//    val petId = navController.currentBackStackEntry?.arguments?.getString("petId")
+//    val selectedPet = remember(petId, pets) { pets.find { it.petId == petId } }
+//    val isEditing = selectedPet != null
+//
+//    var profileImageUrl by remember { mutableStateOf(selectedPet?.profileImageUrl ?: "") }
+//    var name by remember { mutableStateOf(selectedPet?.name ?: "") }
+//    var type by remember { mutableStateOf(selectedPet?.type ?: "Please choose one") }
+//    val typeOptions = listOf("Dog", "Cat")
+//    var isTypeExpanded by remember { mutableStateOf(false) }
+//    var breed by remember { mutableStateOf(selectedPet?.breed ?: "") }
+//    var selectedSex by remember { mutableStateOf(selectedPet?.selectedSex ?: "Please choose one") }
+//    val sexOptions = listOf("Neutered male", "Spayed female", "Intact male", "Intact female")
+//    var isSexExpanded by remember { mutableStateOf(false) }
+//    var birthDate by remember { mutableStateOf(selectedPet?.birthDate ?: Date()) }
+//    val calendar = Calendar.getInstance()
+//    val datePickerState = rememberDatePickerState(birthDate.time)
+//    var showDatePicker by remember { mutableStateOf(false) }
+//
+//    // Generate a new petId if not editing
+//    val newPetId = selectedPet?.petId ?: FirebaseDatabase.getInstance().getReference("pets/$userId").push().key!!
+//
+//    // Update form fields when selectedPet changes
+//    LaunchedEffect(selectedPet) {
+//        selectedPet?.let {
+//            profileImageUrl = it.profileImageUrl
+//            name = it.name
+//            type = it.type
+//            breed = it.breed
+//            selectedSex = it.selectedSex
+//            birthDate = it.birthDate
+//            datePickerState.selectedDateMillis = it.birthDate.time
+//        }
+//    }
+//
+//    // Load pets when the screen is displayed
+//    LaunchedEffect(Unit) {
+//        profileViewModel.loadPetsProfile(userId)
+//    }
+//
+//    // Image picker launcher
+//    val imagePickerLauncher = rememberLauncherForActivityResult(
+//        contract = ActivityResultContracts.GetContent(),
+//        onResult = { uri: Uri? ->
+//            uri?.let {
+//                profileViewModel.uploadPetImage(userId, newPetId, it) { uploadedImageUrl ->
+//                    profileImageUrl = uploadedImageUrl // Update the profileImageUrl after uploading
+//                }
+//            }
+//        }
+//    )
+//
+//    Scaffold(
+//        topBar = {
+//            TopAppBar(
+//                title = { Text(if (isEditing) "Edit Pet" else "Add Pet") },
+//                navigationIcon = {
+//                    IconButton(onClick = {
+//                        navController.navigate(Routes.Profile.value) {
+//                            popUpTo(Routes.Profile.value) { inclusive = true }
+//                        }
+//                    }) {
+//                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+//                    }
+//                }
+//            )
+//        },
+//        content = { paddingValues ->
+//            Column(
+//                modifier = Modifier
+//                    .padding(paddingValues)
+//                    .padding(16.dp)
+//                    .fillMaxSize(),
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                // Pet Profile Image
+//                Column(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalAlignment = Alignment.CenterHorizontally
+//                ) {
+//                    Box(
+//                        contentAlignment = Alignment.BottomEnd,
+//                        modifier = Modifier.size(150.dp)
+//                    ) {
+//                        Image(
+//                            painter = rememberImagePainter(profileImageUrl),
+//                            contentDescription = "Profile Picture",
+//                            modifier = Modifier
+//                                .fillMaxSize()
+//                                .background(Color.LightGray, CircleShape)
+//                                .clip(CircleShape)
+//                        )
+//                        IconButton(
+//                            onClick = { imagePickerLauncher.launch("image/*") },
+//                            modifier = Modifier
+//                                .size(30.dp)
+//                                .padding(4.dp)
+//                        ) {
+//                            Icon(
+//                                imageVector = Icons.Filled.AddCircle,
+//                                contentDescription = "Pick Image"
+//                            )
+//                        }
+//                    }
+//                }
+//                Spacer(modifier = Modifier.height(8.dp))
+//
+//                // Pet Name
+//                TextField(
+//                    value = name,
+//                    onValueChange = { name = it },
+//                    label = { Text("Pet Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+//                    colors = TextFieldDefaults.textFieldColors(
+//                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        containerColor = MaterialTheme.colorScheme.surface,
+//                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+//                    ),
+//                    modifier = Modifier.fillMaxWidth()
+//                )
+//                Spacer(modifier = Modifier.height(8.dp))
+//
+//                // Pet Type
+//                ExposedDropdownMenuBox(expanded = isTypeExpanded, onExpandedChange = { isTypeExpanded = it }) {
+//                    TextField(
+//                        modifier = Modifier
+//                            .menuAnchor()
+//                            .fillMaxWidth(),
+//                        readOnly = true,
+//                        value = type,
+//                        onValueChange = {},
+//                        label = { Text("Type", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+//                        colors = TextFieldDefaults.textFieldColors(
+//                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+//                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                            containerColor = MaterialTheme.colorScheme.surface,
+//                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+//                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+//                        ),
+//                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTypeExpanded) }
+//                    )
+//                    ExposedDropdownMenu(
+//                        expanded = isTypeExpanded,
+//                        onDismissRequest = { isTypeExpanded = false }
+//                    ) {
+//                        typeOptions.forEach { selectionOption ->
+//                            DropdownMenuItem(
+//                                text = { Text(selectionOption) },
+//                                onClick = {
+//                                    type = selectionOption
+//                                    isTypeExpanded = false
+//                                },
+//                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+//                            )
+//                        }
+//                    }
+//                }
+//                Spacer(modifier = Modifier.height(8.dp))
+//
+//                // Pet Breed
+//                TextField(
+//                    value = breed,
+//                    onValueChange = { breed = it },
+//                    label = { Text("Breed", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+//                    colors = TextFieldDefaults.textFieldColors(
+//                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        containerColor = MaterialTheme.colorScheme.surface,
+//                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+//                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+//                    ),
+//                    modifier = Modifier.fillMaxWidth()
+//                )
+//                Spacer(modifier = Modifier.height(8.dp))
+//
+//                // Pet Sex
+//                ExposedDropdownMenuBox(expanded = isSexExpanded, onExpandedChange = { isSexExpanded = it }) {
+//                    TextField(
+//                        modifier = Modifier
+//                            .menuAnchor()
+//                            .fillMaxWidth(),
+//                        readOnly = true,
+//                        value = selectedSex,
+//                        onValueChange = {},
+//                        label = { Text("Sex", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+//                        colors = TextFieldDefaults.textFieldColors(
+//                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+//                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+//                            containerColor = MaterialTheme.colorScheme.surface,
+//                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+//                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+//                        ),
+//                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isSexExpanded) }
+//                    )
+//                    ExposedDropdownMenu(
+//                        expanded = isSexExpanded,
+//                        onDismissRequest = { isSexExpanded = false }
+//                    ) {
+//                        sexOptions.forEach { selectionOption ->
+//                            DropdownMenuItem(
+//                                text = { Text(selectionOption) },
+//                                onClick = {
+//                                    selectedSex = selectionOption
+//                                    isSexExpanded = false
+//                                },
+//                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+//                            )
+//                        }
+//                    }
+//                }
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                // Pet Birth Date
+//                Row(
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    modifier = Modifier.fillMaxWidth()
+//                ) {
+//                    OutlinedButton(onClick = { showDatePicker = true },
+//                        modifier = Modifier
+//                            .weight (1f)
+//                            .height(46.dp)
+//                    ) { Text("Enter Date of Birth") }
+//                    Spacer(modifier = Modifier.width(16.dp))
+//                    Text(
+//                        text = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(birthDate),
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        modifier = Modifier.weight(1f)
+//                    )
+//                }
+//
+//                if (showDatePicker) {
+//                    DatePickerDialog(
+//                        onDismissRequest = { showDatePicker = false },
+//                        confirmButton = {
+//                            TextButton(onClick = {
+//                                showDatePicker = false
+//                                birthDate = Date(datePickerState.selectedDateMillis ?: birthDate.time)
+//                            }) { Text("OK") }
+//                        },
+//                        dismissButton = {
+//                            TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+//                        }
+//                    ) {
+//                        DatePicker(state = datePickerState)
+//                    }
+//                }
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                // Save Button
+//                Button(
+//                    onClick = {
+//                        if (name.isNotBlank() && type != "Please choose one" && selectedSex != "Please choose one" && breed.isNotBlank()) {
+//                            val petToSave = Pet(
+//                                petId = newPetId,
+//                                name = name,
+//                                type = type,
+//                                breed = breed,
+//                                selectedSex = selectedSex,
+//                                birthDate = birthDate,
+//                                profileImageUrl = profileImageUrl
+//                            )
+//
+//                            if (isEditing) {
+//                                profileViewModel.updatePet(userId, petToSave)
+//                            } else {
+//                                profileViewModel.addPet(userId, petToSave)
+//                            }
+//
+//                            // Navigate back to profile and refresh
+//                            navController.navigate(Routes.Profile.value) {
+//                                popUpTo(Routes.Profile.value) { inclusive = true }
+//                            }
+//                            profileViewModel.loadPetsProfile(userId)
+//                        }
+//                    },
+//                    enabled = name.isNotBlank() && type != "Please choose one" && selectedSex != "Please choose one" && breed.isNotBlank(),
+//                    modifier = Modifier.height(46.dp).width(190.dp)
+//                ) {
+//                    Text(if (isEditing) "Save Changes" else "Save New Pet")
+//                }
+//            }
+//        }
+//    )
+//}

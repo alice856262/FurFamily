@@ -3,9 +3,11 @@ package com.example.furfamily.calendar
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
@@ -39,9 +43,11 @@ import com.example.furfamily.getCurrentUserId
 import com.example.furfamily.viewmodel.CalendarViewModel
 import com.example.furfamily.viewmodel.NutritionViewModel
 import com.example.furfamily.viewmodel.ProfileViewModel
-import com.example.furfamily.viewmodels.AuthViewModel
 import java.time.LocalDate
 import java.time.YearMonth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.Divider
+import androidx.compose.material3.TextFieldDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -56,10 +62,11 @@ fun CalendarScreen() {
     val context = LocalContext.current
     val intentForUserResolution by calendarViewModel.intentForUserResolution.observeAsState()
     val allEvents by calendarViewModel.calendarEvents.observeAsState(emptyList())
-    val calendarEvents by calendarViewModel.calendarEventDates.observeAsState(emptyList())
+    val calendarEvents by calendarViewModel.selectedDateEvents.observeAsState(emptyList())
     val allEventsDates by calendarViewModel.eventsDates.observeAsState(emptyList())
     val feedingEvents by nutritionViewModel.feedingEvents.observeAsState(emptyList())
     val pets by profileViewModel.pets.observeAsState(emptyList())
+    val foodList by nutritionViewModel.foodList.observeAsState(emptyList())
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
@@ -69,6 +76,8 @@ fun CalendarScreen() {
     var selectedPetName by remember { mutableStateOf("All Pets") }
     val petNames = listOf("All Pets") + pets.map { it.name }
     var isPetNameExpanded by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Load data when userId is available
     LaunchedEffect(userId) {
@@ -92,6 +101,13 @@ fun CalendarScreen() {
     LaunchedEffect(intentForUserResolution) {
         intentForUserResolution?.let {
             context.startActivity(it)
+        }
+    }
+
+    LaunchedEffect(successMessage) {
+        if (successMessage.isNotEmpty()) {
+            snackbarHostState.showSnackbar(successMessage)
+            successMessage = ""
         }
     }
 
@@ -121,14 +137,17 @@ fun CalendarScreen() {
                 }
             )
         },
-        content = { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .padding(horizontal = 6.dp)
-                    .fillMaxSize()
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Fixed Calendar Section
+            Box(
+                modifier = Modifier.height(340.dp)
             ) {
-                // Month View
                 MonthView(
                     currentDate = currentDate,
                     selectedDate = selectedDate,
@@ -148,121 +167,149 @@ fun CalendarScreen() {
                         }
                     }
                 )
+            }
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Column(
-                    modifier = Modifier
-                        .padding(start = 12.dp, end = 12.dp)
-                ) {
-                    // Search bar for events
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text("Search Events") },
+            // Scrollable Content Section
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                item {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    )
-
-                    // Events List (always shown below search bar)
-                    if (selectedDate == null && searchQuery.isBlank()) {
-                        Text(
-                            text = "Please select a date to view events.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        // Search bar for events
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("Search events by keywords", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            colors = TextFieldDefaults.textFieldColors(
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
                         )
-                    } else {
-                        Text(
-                            text = if (searchQuery.isNotBlank())
-                                "Events matching \"$searchQuery\""
-                            else
-                                "Events for $selectedDate",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
 
-                        if (filteredEvents.isEmpty()) {
+                        // Events List
+                        if (selectedDate == null && searchQuery.isBlank()) {
+                            Text(
+                                text = "Please select a date to view events.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
                             Text(
                                 text = if (searchQuery.isNotBlank())
-                                    "No events found for \"$searchQuery\"."
+                                    "Events matching \"$searchQuery\""
                                 else
-                                    "No events for this date.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    "Events for $selectedDate",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
                             )
-                        } else {
-                            EventsList(filteredEvents)
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Pet Name Dropdown for Feeding Events
-                    ExposedDropdownMenuBox(
-                        expanded = isPetNameExpanded,
-                        onExpandedChange = { isPetNameExpanded = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        TextField(
-                            readOnly = true,
-                            value = selectedPetName,
-                            onValueChange = {},
-                            label = { Text("Pet Name") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPetNameExpanded) },
-                            modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth()
-                                .focusProperties { canFocus = false },
-                        )
-
-                        ExposedDropdownMenu(
-                            expanded = isPetNameExpanded,
-                            onDismissRequest = { isPetNameExpanded = false }
-                        ) {
-                            petNames.forEach { name ->
-                                DropdownMenuItem(
-                                    text = { Text(name) },
-                                    onClick = {
-                                        selectedPetName = name
-                                        isPetNameExpanded = false
-                                    },
-                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            if (filteredEvents.isEmpty()) {
+                                Text(
+                                    text = if (searchQuery.isNotBlank())
+                                        "No events found for \"$searchQuery\"."
+                                    else
+                                        "No events for this date.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            } else {
+                                filteredEvents.forEach { event ->
+                                    EventItem(event)
+                                }
                             }
                         }
-                    }
 
-                    // Feeding List (below pet name dropdown)
-                    if (selectedDate == null) {
-                        Text(
-                            text = "Please select a date to view feeding records.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text(
-                            text = "Feeding Records for $selectedDate",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        if (feedingEvents.isEmpty()) {
+                        // Pet Name Dropdown for Feeding Events
+                        ExposedDropdownMenuBox(
+                            expanded = isPetNameExpanded,
+                            onExpandedChange = { isPetNameExpanded = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        ) {
+                            TextField(
+                                readOnly = true,
+                                value = selectedPetName,
+                                onValueChange = {},
+                                label = { Text("Filter feeding records by pet name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                colors = TextFieldDefaults.textFieldColors(
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isPetNameExpanded) },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                                    .focusProperties { canFocus = false },
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isPetNameExpanded,
+                                onDismissRequest = { isPetNameExpanded = false }
+                            ) {
+                                petNames.forEach { name ->
+                                    DropdownMenuItem(
+                                        text = { Text(name) },
+                                        onClick = {
+                                            selectedPetName = name
+                                            isPetNameExpanded = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            }
+                        }
+
+                        // Feeding List
+                        if (selectedDate == null) {
                             Text(
-                                text = "No feeding records for this date.",
+                                text = "Please select a date to view feeding records.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            FeedingEventsList(filteredFeedingEvents, pets, nutritionViewModel)
+                            Text(
+                                text = "Feeding records for $selectedDate",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            if (feedingEvents.isEmpty()) {
+                                Text(
+                                    text = "No feeding records for this date.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                filteredFeedingEvents.forEach { feeding ->
+                                    val pet = pets.find { it.petId == feeding.petId }
+                                    val food = foodList.find { it.foodId == feeding.foodId }
+                                    FeedingEventItem(feeding, pet, food)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-    )
+    }
 
     if (showCreateEventDialog) {
         CreateCalendarEvent(
@@ -271,6 +318,7 @@ fun CalendarScreen() {
             pets = pets,
             onEventCreated = {
                 showCreateEventDialog = false
+                successMessage = "Event created successfully!"
             },
             onDismiss = {
                 showCreateEventDialog = false

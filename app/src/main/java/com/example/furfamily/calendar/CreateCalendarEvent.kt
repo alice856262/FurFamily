@@ -16,11 +16,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -196,7 +198,7 @@ fun CreateCalendarEvent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Button(onClick = onDismiss) {
+                OutlinedButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
                 Button(
@@ -211,9 +213,13 @@ fun CreateCalendarEvent(
                             endTime = endTime,
                             location = location
                         )
-                        calendarViewModel.createEvent(event) {
-                            onEventCreated() // Notify the screen to hide the create event section
-                        }
+                        calendarViewModel.createEvent(
+                            calendarEvent = event,
+                            function = {
+                                calendarViewModel.loadEventsForDate(event.startTime.toLocalDate()) // Refresh the list
+                                onEventCreated()
+                            }
+                        )
                     },
                     enabled = (selectedTitle != "Other" || customTitle.isNotBlank()) && startTime.isBefore(endTime) && selectedPet != null // Enable button if conditions are met
                 ) {
@@ -232,37 +238,42 @@ fun DateTimePicker(label: String, dateTime: LocalDateTime, onDateTimeChanged: (L
     var showTimePicker by remember { mutableStateOf(false) }
     var tempDate by remember { mutableStateOf(dateTime) }
 
-    if (showDatePicker) {
-        DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                tempDate = tempDate.withYear(year).withMonth(month + 1).withDayOfMonth(dayOfMonth)
-                showDatePicker = false
-                showTimePicker = true // Open time picker after date selection
-            },
-            tempDate.year,
-            tempDate.monthValue - 1,
-            tempDate.dayOfMonth
-        ).show()
+    // Launch dialogs properly without triggering recomposition
+    LaunchedEffect(showDatePicker) {
+        if (showDatePicker) {
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    tempDate = tempDate.withYear(year).withMonth(month + 1).withDayOfMonth(dayOfMonth)
+                    showDatePicker = false
+                    showTimePicker = true
+                },
+                tempDate.year,
+                tempDate.monthValue - 1,
+                tempDate.dayOfMonth
+            ).show()
+        }
     }
 
-    if (showTimePicker) {
-        TimePickerDialog(
-            context,
-            { _, hourOfDay, minute ->
-                val finalDateTime = tempDate.withHour(hourOfDay).withMinute(minute)
-                onDateTimeChanged(finalDateTime)
-                showTimePicker = false // Close time picker after selection
-            },
-            tempDate.hour,
-            tempDate.minute,
-            true
-        ).show()
+    LaunchedEffect(showTimePicker) {
+        if (showTimePicker) {
+            TimePickerDialog(
+                context,
+                { _, hourOfDay, minute ->
+                    val finalDateTime = tempDate.withHour(hourOfDay).withMinute(minute)
+                    onDateTimeChanged(finalDateTime)
+                    showTimePicker = false
+                },
+                tempDate.hour,
+                tempDate.minute,
+                true
+            ).show()
+        }
     }
 
     Column {
         TextButton(onClick = { showDatePicker = true }) {
-            Text(text = "$label: ${dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
+            Text("$label: ${dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
         }
     }
 }

@@ -44,7 +44,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.furfamily.getCurrentUserId
 import com.example.furfamily.profile.Pet
-import com.example.furfamily.viewmodel.HealthViewModel
 import com.example.furfamily.viewmodel.NutritionViewModel
 import com.example.furfamily.viewmodel.ProfileViewModel
 
@@ -57,8 +56,8 @@ fun NutritionScreen(navController: NavController) {
     val userId = getCurrentUserId()
     val foods by nutritionViewModel.foodList.observeAsState(emptyList())
     val pets by profileViewModel.pets.observeAsState(emptyList())
+    val petWeights by nutritionViewModel.petWeights.observeAsState(emptyMap())
     var isPetDropdownExpanded by remember { mutableStateOf(false) }
-    val latestWeight by nutritionViewModel.latestWeight.observeAsState(null)
     var selectedPet by remember { mutableStateOf<Pet?>(null) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
     var showSnackbar by remember { mutableStateOf(false) }
@@ -203,10 +202,12 @@ fun NutritionScreen(navController: NavController) {
         CreateFeedingRecord(
             selectedPet = selectedPet!!,
             selectedFood = selectedFood!!,
-            latestWeight = latestWeight,
+            latestWeight = petWeights[selectedPet!!.petId],
             onSave = { amount, mealTime, mealType, notes, lifestyle, gestationLactation ->
                 nutritionViewModel.saveFeeding(selectedPet!!, selectedFood!!, amount, mealTime, mealType, notes)
                 showFeedingDialog = false
+                snackbarMessage = "Feeding record added successfully!"
+                showSnackbar = true
             },
             onDismiss = { showFeedingDialog = false }
         )

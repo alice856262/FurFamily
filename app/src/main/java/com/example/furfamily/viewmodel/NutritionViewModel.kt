@@ -47,8 +47,8 @@ class NutritionViewModel @Inject constructor(
     private val _foodList = MutableLiveData<List<Food>>()
     val foodList: LiveData<List<Food>> = _foodList
 
-    private val _latestWeight = MutableLiveData<Float?>()
-    val latestWeight: LiveData<Float?> = _latestWeight
+    private val _petWeights = MutableLiveData<Map<String, Float>>()
+    val petWeights: LiveData<Map<String, Float>> = _petWeights
 
     private val _feedingEvents = MutableLiveData<List<Feeding>>()
     val feedingEvents: LiveData<List<Feeding>> = _feedingEvents
@@ -186,37 +186,49 @@ class NutritionViewModel @Inject constructor(
             }
     }
 
-    // Function to fetch the latest weight record
+    // Function to fetch the latest weight record for each pet
     fun fetchLatestWeight() {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
         // Reference to the healthRecords node for the current user
         val healthRecordsRef = FirebaseDatabase.getInstance().getReference("healthRecords/$userId")
 
-        // Query to get the latest health record based on `entryDate.time`
-        healthRecordsRef.orderByChild("entryDate/time").limitToLast(1)
+        // Query to get all health records ordered by entryDate.time
+        healthRecordsRef.orderByChild("entryDate/time")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (snapshot.exists()) {
                         Log.d("ViewModel", "Health records found: ${snapshot.childrenCount}")
 
-                        // Fetch the latest health record based on time
+                        // Create a map to store the latest weight for each pet
+                        val latestWeights = mutableMapOf<String, Float>()
+
+                        // Process each health record
                         snapshot.children.forEach { child ->
                             val healthRecord = child.getValue(HealthRecord::class.java)
-                            if (healthRecord != null) {
-                                Log.d("ViewModel", "Latest health record: ${healthRecord.entryDate} - Weight: ${healthRecord.weight}")
-                                _latestWeight.postValue(healthRecord.weight)
-                            } else {
-                                Log.e("ViewModel", "Error parsing health record")
+                            if (healthRecord != null && healthRecord.petId != null) {
+                                val weight = healthRecord.weight
+                                if (weight != null) {
+                                    // Only update the weight if it's more recent than what we have for this pet
+                                    val currentLatestWeight = latestWeights[healthRecord.petId]
+                                    if (currentLatestWeight == null || 
+                                        healthRecord.entryDate.after(Date(currentLatestWeight.toLong()))) {
+                                        latestWeights[healthRecord.petId] = weight
+                                    }
+                                }
                             }
                         }
+
+                        // Update the LiveData with the latest weights for each pet
+                        _petWeights.postValue(latestWeights)
                     } else {
                         Log.d("ViewModel", "No health records found")
-                        _latestWeight.postValue(null)  // Handle the case where no weight is found
+                        _petWeights.postValue(emptyMap())
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
-                    Log.e("ViewModel", "Error fetching latest weight: ${error.message}")
+                    Log.e("ViewModel", "Error fetching latest weights: ${error.message}")
+                    _petWeights.postValue(emptyMap())
                 }
             })
     }

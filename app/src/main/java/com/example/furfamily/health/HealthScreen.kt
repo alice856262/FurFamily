@@ -26,10 +26,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateListOf
@@ -50,7 +53,6 @@ import coil.compose.rememberImagePainter
 import com.example.furfamily.profile.Pet
 import com.example.furfamily.viewmodel.HealthViewModel
 import com.example.furfamily.viewmodel.ProfileViewModel
-import com.example.furfamily.viewmodels.AuthViewModel
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -72,6 +74,9 @@ fun HealthScreen(userId: String, navController: NavController) {
     var selectedPet by remember { mutableStateOf<Pet?>(null) }
     val lineEntries = remember { mutableStateListOf<Entry>() }
     val dateLabels = remember { mutableStateListOf<String>() }
+    val snackbarHostState = remember { SnackbarHostState() }
+    var snackbarMessage by remember { mutableStateOf("") }
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
 
     // Load pets when the screen is displayed
     LaunchedEffect(userId) {
@@ -107,6 +112,17 @@ fun HealthScreen(userId: String, navController: NavController) {
         }
     }
 
+    // Show Snackbar
+    LaunchedEffect(savedStateHandle) {
+        savedStateHandle?.get<String>("healthRecordSaved")?.let { petName ->
+            if (petName.isNotEmpty()) {
+                snackbarMessage = "Health record for $petName added successfully!"
+                snackbarHostState.showSnackbar(snackbarMessage)
+                savedStateHandle.remove<String>("healthRecordSaved")
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -120,7 +136,8 @@ fun HealthScreen(userId: String, navController: NavController) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -274,7 +291,7 @@ fun HealthScreen(userId: String, navController: NavController) {
                                     }
                                 }
                             }
-                    }
+                        }
                 }
             }
         }

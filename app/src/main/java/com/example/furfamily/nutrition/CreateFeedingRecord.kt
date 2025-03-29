@@ -21,6 +21,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,7 +76,7 @@ fun CreateFeedingRecord(
             Column {
                 latestWeight?.let {
                     Text(
-                        text = "Latest Body Weight: ${"%.2f".format(latestWeight)} kg",
+                        text = "Latest Body Weight: ${"%.1f".format(latestWeight)} kg",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -232,7 +233,7 @@ fun CreateFeedingRecord(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Button(onClick = onDismiss) {
+                OutlinedButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
                 Button(

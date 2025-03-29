@@ -60,12 +60,12 @@ fun LoginScreen(
     navController: NavController
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
-
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var showResetPasswordDialog by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf("") }
+    val showSnackbar = remember { mutableStateOf(false) }
 
     // Google Sign-In intent handling
     val signInIntent by authViewModel.googleSignInIntent.observeAsState()
@@ -83,6 +83,13 @@ fun LoginScreen(
     LaunchedEffect(signInIntent) {
         signInIntent?.let {
             googleSignInLauncher.launch(it)
+        }
+    }
+
+    // Show snackbar when error appears
+    LaunchedEffect(loginError) {
+        if (loginError.isNotEmpty()) {
+            showSnackbar.value = true
         }
     }
 
@@ -153,12 +160,45 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        // Error Message
+        if (showSnackbar.value && loginError.isNotEmpty()) {
+            Snackbar(
+                modifier = Modifier
+                    .padding(top = 16.dp, bottom = 16.dp)
+                    .background(MaterialTheme.colorScheme.error),
+                action = {
+                    TextButton(onClick = {
+                        showSnackbar.value = false
+                        loginError = ""
+                    }) {
+                        Text("DISMISS", color = MaterialTheme.colorScheme.onError)
+                    }
+                }
+            ) {
+                Text(loginError, color = MaterialTheme.colorScheme.onError)
+            }
+        } else {
+            Spacer(modifier = Modifier.height(40.dp))
+        }
 
         // Login Button
         Button(
             onClick = {
-                loginWithEmailPassword(email, password, navController) { error -> loginError = error }
+                // Input validation before attempting login
+                when {
+                    email.isBlank() && password.isBlank() -> {
+                        loginError = "Please enter both email and password"
+                    }
+                    email.isBlank() -> {
+                        loginError = "Please enter your email"
+                    }
+                    password.isBlank() -> {
+                        loginError = "Please enter your password"
+                    }
+                    else -> {
+                        loginWithEmailPassword(email, password) { error -> loginError = error }
+                    }
+                }
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary, // Use containerColor for the background
@@ -169,22 +209,6 @@ fun LoginScreen(
                 .width(190.dp)
         ) {
             Text("Login")
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Error Message
-        if (loginError.isNotEmpty()) {
-            Snackbar(
-                modifier = Modifier.background(MaterialTheme.colorScheme.error), // Set background color here
-                action = {
-                    TextButton(onClick = { /* Handle dismissal */ }) {
-                        Text("DISMISS", color = MaterialTheme.colorScheme.onError)
-                    }
-                }
-            ) {
-                Text(loginError, color = MaterialTheme.colorScheme.onError)
-            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -246,7 +270,7 @@ fun loginWithEmailPassword(email: String, password: String, navController: NavCo
             }
         } else {
             Log.e("Login Error", task.exception?.message ?: "Unknown Error")
-            val errorMessage = "Login failed: please make sure you provide the correct email and password!"
+            val errorMessage = "Login failed:\nEmail or password is incorrect"
             onLoginError(errorMessage)  // Pass the error message back to the Composable
         }
     }

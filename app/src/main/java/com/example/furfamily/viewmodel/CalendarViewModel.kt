@@ -136,7 +136,7 @@ class CalendarViewModel @Inject constructor(
 
     private fun loadGoogleCalendarEventsForDate(date: LocalDate) {
         try {
-            val account = GoogleSignIn.getLastSignedInAccount(application)!!
+            val account = GoogleSignIn.getLastSignedInAccount(application) ?: return
             val credential = GoogleAccountCredential.usingOAuth2(
                 application, listOf(CalendarScopes.CALENDAR)
             )
@@ -158,6 +158,9 @@ class CalendarViewModel @Inject constructor(
             _selectedDateEvents.postValue(events.items)
         } catch (e: UserRecoverableAuthIOException) {
             _intentForUserResolution.postValue(e.intent)
+        } catch (e: Exception) {
+            Log.e("CalendarViewModel", "Error loading Google Calendar events for date", e)
+            _selectedDateEvents.postValue(emptyList())
         }
     }
 
@@ -233,7 +236,7 @@ class CalendarViewModel @Inject constructor(
             }
 
             // Always save to Firebase
-            saveEventToFirebase(userId, calendarEvent)
+            saveEventToFirebase(userId, calendarEvent, function)
         }
     }
 
@@ -264,7 +267,7 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    private fun saveEventToFirebase(userId: String, event: CalendarEvent) {
+    private fun saveEventToFirebase(userId: String, event: CalendarEvent, onComplete: () -> Unit) {
         val eventsRef = firebaseDatabase.reference.child("events").child(userId)
         val eventId = eventsRef.push().key ?: return
 
@@ -281,6 +284,28 @@ class CalendarViewModel @Inject constructor(
         eventsRef.child(eventId).setValue(eventMap)
             .addOnSuccessListener {
                 Log.d("CalendarViewModel", "Event saved successfully")
+
+                // Manually update calendarEvents
+                val newEvent = Event().apply {
+                    summary = event.title
+                    description = event.description
+                    location = event.location
+                    start = EventDateTime().setDateTime(localDateTimeToDateTime(event.startTime))
+                    end = EventDateTime().setDateTime(localDateTimeToDateTime(event.endTime))
+                }
+
+                val updatedEvents = _calendarEvents.value.orEmpty().toMutableList()
+                updatedEvents.add(newEvent)
+                _calendarEvents.postValue(updatedEvents)
+
+                // Update eventsDates for highlighting in calendar
+                val newDate = event.startTime.toLocalDate()
+                val currentDates = _eventsDates.value.orEmpty()
+                if (newDate !in currentDates) {
+                    _eventsDates.postValue(currentDates + newDate)
+                }
+
+                onComplete()
             }
             .addOnFailureListener {
                 Log.e("CalendarViewModel", "Failed to save event", it)
@@ -288,15 +313,20 @@ class CalendarViewModel @Inject constructor(
     }
 
     private fun parseLocalDateTimeFromMap(dateTimeMap: Map<*, *>): LocalDateTime {
-        val year = (dateTimeMap["year"] as Long).toInt()
-        val month = Month.valueOf((dateTimeMap["month"] as String).uppercase())
-        val day = (dateTimeMap["dayOfMonth"] as Long).toInt()
-        val hour = (dateTimeMap["hour"] as Long).toInt()
-        val minute = (dateTimeMap["minute"] as Long).toInt()
-        val second = (dateTimeMap["second"] as Long).toInt()
-        val nanoOfSecond = (dateTimeMap["nano"] as Long).toInt()
+        return try {
+            val year = (dateTimeMap["year"] as? Number)?.toInt() ?: LocalDateTime.now().year
+            val month = Month.valueOf((dateTimeMap["month"] as? String ?: "JANUARY").uppercase())
+            val day = (dateTimeMap["dayOfMonth"] as? Number)?.toInt() ?: 1
+            val hour = (dateTimeMap["hour"] as? Number)?.toInt() ?: 0
+            val minute = (dateTimeMap["minute"] as? Number)?.toInt() ?: 0
+            val second = (dateTimeMap["second"] as? Number)?.toInt() ?: 0
+            val nanoOfSecond = (dateTimeMap["nano"] as? Number)?.toInt() ?: 0
 
-        return LocalDateTime.of(year, month, day, hour, minute, second, nanoOfSecond)
+            LocalDateTime.of(year, month, day, hour, minute, second, nanoOfSecond)
+        } catch (e: Exception) {
+            Log.e("CalendarViewModel", "Error parsing date time map", e)
+            LocalDateTime.now()
+        }
     }
 
     private fun localDateTimeToDateTime(ldt: LocalDateTime): com.google.api.client.util.DateTime {
