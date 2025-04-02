@@ -58,6 +58,9 @@ class CalendarViewModel @Inject constructor(
     private val httpTransport = NetHttpTransport()
     private val jsonFactory = GsonFactory.getDefaultInstance()
 
+    private val _error = MutableLiveData<String>()
+    val error: LiveData<String> = _error
+
     fun loadCalendarEvents() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -195,6 +198,7 @@ class CalendarViewModel @Inject constructor(
             val title = eventMap["title"] as? String ?: return null
             val description = eventMap["description"] as? String
             val location = eventMap["location"] as? String
+            val eventId = snapshot.key ?: return null
 
             val startTimeMap = eventMap["startTime"] as? Map<*, *> ?: return null
             val endTimeMap = eventMap["endTime"] as? Map<*, *> ?: return null
@@ -203,11 +207,19 @@ class CalendarViewModel @Inject constructor(
             val endTime = parseLocalDateTimeFromMap(endTimeMap)
 
             Event().apply {
+                id = eventId
                 summary = title
                 this.description = description
                 this.location = location
                 start = EventDateTime().setDateTime(localDateTimeToDateTime(startTime))
                 end = EventDateTime().setDateTime(localDateTimeToDateTime(endTime))
+                extendedProperties = Event.ExtendedProperties().apply {
+                    private = mapOf(
+                        "eventId" to eventId,
+                        "petId" to (eventMap["petId"] as? String ?: ""),
+                        "userId" to (eventMap["userId"] as? String ?: "")
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.e("CalendarViewModel", "Error converting event snapshot", e)
@@ -272,12 +284,29 @@ class CalendarViewModel @Inject constructor(
         val eventId = eventsRef.push().key ?: return
 
         val eventMap = mapOf(
+            "eventId" to eventId,
             "userId" to event.userId,
             "petId" to event.petId,
             "title" to event.title,
             "description" to event.description,
-            "startTime" to event.startTime,
-            "endTime" to event.endTime,
+            "startTime" to mapOf(
+                "year" to event.startTime.year,
+                "month" to event.startTime.month.name,
+                "dayOfMonth" to event.startTime.dayOfMonth,
+                "hour" to event.startTime.hour,
+                "minute" to event.startTime.minute,
+                "second" to event.startTime.second,
+                "nano" to event.startTime.nano
+            ),
+            "endTime" to mapOf(
+                "year" to event.endTime.year,
+                "month" to event.endTime.month.name,
+                "dayOfMonth" to event.endTime.dayOfMonth,
+                "hour" to event.endTime.hour,
+                "minute" to event.endTime.minute,
+                "second" to event.endTime.second,
+                "nano" to event.endTime.nano
+            ),
             "location" to event.location
         )
 
@@ -287,11 +316,19 @@ class CalendarViewModel @Inject constructor(
 
                 // Manually update calendarEvents
                 val newEvent = Event().apply {
+                    id = eventId
                     summary = event.title
                     description = event.description
                     location = event.location
                     start = EventDateTime().setDateTime(localDateTimeToDateTime(event.startTime))
                     end = EventDateTime().setDateTime(localDateTimeToDateTime(event.endTime))
+                    extendedProperties = Event.ExtendedProperties().apply {
+                        private = mapOf(
+                            "eventId" to eventId,
+                            "petId" to event.petId,
+                            "userId" to event.userId
+                        )
+                    }
                 }
 
                 val updatedEvents = _calendarEvents.value.orEmpty().toMutableList()
@@ -344,5 +381,121 @@ class CalendarViewModel @Inject constructor(
 
     fun clearSelectedDateEvents() {
         _selectedDateEvents.value = emptyList()
+    }
+
+    fun updateEvent(event: CalendarEvent) {
+        viewModelScope.launch {
+            try {
+                if (event.eventId.isEmpty()) {
+                    _error.value = "Cannot update event: Missing event ID"
+                    return@launch
+                }
+
+                val eventRef = firebaseDatabase.reference
+                    .child("events")
+                    .child(event.userId)
+                    .child(event.eventId)
+
+                val eventMap = mapOf(
+                    "userId" to event.userId,
+                    "petId" to event.petId,
+                    "title" to event.title,
+                    "description" to event.description,
+                    "startTime" to mapOf(
+                        "year" to event.startTime.year,
+                        "month" to event.startTime.month.name,
+                        "dayOfMonth" to event.startTime.dayOfMonth,
+                        "hour" to event.startTime.hour,
+                        "minute" to event.startTime.minute,
+                        "second" to event.startTime.second,
+                        "nano" to event.startTime.nano
+                    ),
+                    "endTime" to mapOf(
+                        "year" to event.endTime.year,
+                        "month" to event.endTime.month.name,
+                        "dayOfMonth" to event.endTime.dayOfMonth,
+                        "hour" to event.endTime.hour,
+                        "minute" to event.endTime.minute,
+                        "second" to event.endTime.second,
+                        "nano" to event.endTime.nano
+                    ),
+                    "location" to event.location
+                )
+
+                eventRef.updateChildren(eventMap)
+                    .addOnSuccessListener {
+                        Log.d("CalendarViewModel", "Successfully updated event ${event.eventId}")
+                        loadEventsForDate(event.startTime.toLocalDate())
+                        
+                        // Update local calendar events
+                        val currentEvents = _calendarEvents.value?.toMutableList() ?: mutableListOf()
+                        val index = currentEvents.indexOfFirst { it.id == event.eventId }
+                        if (index != -1) {
+                            val updatedEvent = Event().apply {
+                                id = event.eventId
+                                summary = event.title
+                                description = event.description
+                                location = event.location
+                                start = EventDateTime().setDateTime(localDateTimeToDateTime(event.startTime))
+                                end = EventDateTime().setDateTime(localDateTimeToDateTime(event.endTime))
+                                extendedProperties = Event.ExtendedProperties().apply {
+                                    private = mapOf(
+                                        "eventId" to event.eventId,
+                                        "petId" to event.petId,
+                                        "userId" to event.userId
+                                    )
+                                }
+                            }
+                            currentEvents[index] = updatedEvent
+                            _calendarEvents.postValue(currentEvents)
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        _error.value = "Failed to update event: ${e.message}"
+                    }
+            } catch (e: Exception) {
+                _error.value = "Error updating event: ${e.message}"
+            }
+        }
+    }
+
+    fun deleteEvent(event: CalendarEvent) {
+        viewModelScope.launch {
+            try {
+                if (event.eventId.isEmpty()) {
+                    _error.value = "Cannot delete event: Missing event ID"
+                    return@launch
+                }
+
+                val eventRef = firebaseDatabase.reference
+                    .child("events")
+                    .child(event.userId)
+                    .child(event.eventId)
+
+                eventRef.removeValue()
+                    .addOnSuccessListener {
+                        loadEventsForDate(event.startTime.toLocalDate())
+                        
+                        // Update local calendar events
+                        val currentEvents = _calendarEvents.value?.toMutableList() ?: mutableListOf()
+                        currentEvents.removeAll { it.id == event.eventId }
+                        _calendarEvents.postValue(currentEvents)
+                        
+                        // Update eventsDates
+                        val currentDates = _eventsDates.value?.toMutableList() ?: mutableListOf()
+                        val dateToRemove = event.startTime.toLocalDate()
+                        // Only remove the date if no other events exist on that date
+                        if (currentEvents.none { getEventDate(it) == dateToRemove }) {
+                            currentDates.remove(dateToRemove)
+                            _eventsDates.postValue(currentDates)
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        _error.value = "Failed to delete event: ${e.message}"
+                    }
+            } catch (e: Exception) {
+                _error.value = "Error deleting event: ${e.message}"
+            }
+        }
     }
 }

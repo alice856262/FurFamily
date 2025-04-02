@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 
 @IgnoreExtraProperties
 data class CalendarEvent(
+    val eventId: String = "",
     val userId: String = "",
     val petId: String? = null,
     val title: String = "",

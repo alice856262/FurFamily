@@ -161,7 +161,7 @@ fun NutritionScreen(navController: NavController) {
                                     Text("Calories: ${food.caloriesPerKg} kcal/kg", style = MaterialTheme.typography.bodySmall)
                                 }
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                     IconButton(onClick = { showEditFoodDialog = true; selectedFood = food }) {
                                         Icon(Icons.Default.Edit, contentDescription = "Edit Food")
                                     }

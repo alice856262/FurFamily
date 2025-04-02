@@ -3,6 +3,7 @@ package com.example.furfamily.health
 import java.util.Date
 
 data class HealthRecord(
+    val recordId: String = "",
     val userId: String = "",
     val petId: String? = null,
     val entryDate: Date = Date(),
@@ -15,5 +16,6 @@ data class HealthRecord(
     var ast: Float? = null,
     var alt: Float? = null,
     var bun: Float? = null,
-    var scr: Float? = null
+    var scr: Float? = null,
+    var notes: String = ""
 )

@@ -118,17 +118,16 @@ fun HomeScreen() {
                     HealthScreen(userId, navController)
                 }
             }
-            composable("${Routes.NewHealthRecord.value}/{petId}") { backStackEntry ->
-                val petId = backStackEntry.arguments?.getString("petId")
+            composable("${Routes.NewHealthRecord.value}/{petId}?recordId={recordId}") { backStackEntry ->
+                val petId = backStackEntry.arguments?.getString("petId") ?: ""
+                val recordId = backStackEntry.arguments?.getString("recordId")
                 val userId = getCurrentUserId()
 
-                if (userId != null && petId != null) {
+                if (userId != null) {
                     CreateHealthRecord(
-                        healthRecord = HealthRecord(),
                         userId = userId,
-                        onSaveMetrics = { updatedRecord ->
-                            // Handle the saved record
-                        },
+                        petId = petId,
+                        recordId = recordId,
                         navController = navController
                     )
                 }

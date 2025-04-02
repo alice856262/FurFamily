@@ -1,89 +1,108 @@
 package com.example.furfamily.calendar
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.furfamily.nutrition.Feeding
 import com.example.furfamily.nutrition.Food
 import com.example.furfamily.profile.Pet
-import com.example.furfamily.viewmodel.NutritionViewModel
-import com.google.api.services.calendar.model.Event
-import java.text.SimpleDateFormat
 import java.time.format.DateTimeFormatter
-import java.util.Date
-import java.util.Locale
 
 @Composable
-fun EventsList(events: List<Event>) {
-    LazyColumn {
-        items(events) { event ->
-            EventItem(event)
-        }
-    }
-}
-
-@Composable
-fun EventItem(event: Event) {
-    val startMillis = event.start?.dateTime?.value ?: event.start?.date?.value
-    val endMillis = event.end?.dateTime?.value ?: event.end?.date?.value
-    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-
-    val formattedStart = startMillis?.let {
-        formatter.format(Date(it))
-    } ?: "No Start Time"
-
-    val formattedEnd = endMillis?.let {
-        formatter.format(Date(it))
-    } ?: "No End Time"
-
+fun EventItem(
+    event: CalendarEvent,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { /* Open event details */ },
+            .padding(8.dp),
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Text(text = event.summary ?: "No Title", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Start: $formattedStart", style = MaterialTheme.typography.bodySmall)
-            Text(text = "End: $formattedEnd", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                
+                if (event.description?.isNotBlank() == true) {
+                    Text(
+                        text = event.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-@Composable
-fun FeedingEventsList(feedingEvents: List<Feeding>, pets: List<Pet>, nutritionViewModel: NutritionViewModel) {
-    LazyColumn {
-        items(feedingEvents) { feeding ->
-            val pet = pets.find { it.petId == feeding.petId }
-            var food by remember { mutableStateOf<Food?>(null) }
-
-            // Load food details asynchronously
-            LaunchedEffect(feeding.foodId) {
-                nutritionViewModel.getFoodById(feeding.foodId) { fetchedFood ->
-                    food = fetchedFood
+                if (event.location?.isNotBlank() == true || event.startTime != null) {
+                    Text(
+                        text = buildString {
+                            if (event.location?.isNotBlank() == true) {
+                                append("Location: ${event.location}")
+                            }
+                            if (event.startTime != null) {
+                                append("\nTime: ${event.startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
+                                if (event.endTime != null) {
+                                    append(" ~ ${event.endTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}")
+                                }
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            FeedingEventItem(feeding, pet, food)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit Event",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete Event",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -93,20 +112,44 @@ fun FeedingEventItem(feeding: Feeding, pet: Pet?, food: Food?) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { /* Open feeding details */ },
+            .padding(4.dp),
         shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Text(text = pet?.name ?: "Unknown Pet", style = MaterialTheme.typography.titleMedium)
-            Text(text = "Food: ${food?.name ?: "Unknown Food"}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Meal Type: ${feeding.mealType}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Amount: ${feeding.amount} g", style = MaterialTheme.typography.bodySmall)
-//            Text(text = "Time: ${feeding.mealTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))}", style = MaterialTheme.typography.bodySmall)
-
+        Column(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = pet?.name ?: "Unknown Pet",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Food: ${food?.name ?: "Unknown Food"}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = "Meal: ${feeding.mealType}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Amount: ${feeding.amount} g",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
             if (feeding.notes.isNotEmpty()) {
-                Text(text = "Notes: ${feeding.notes}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = feeding.notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
             }
         }
     }
