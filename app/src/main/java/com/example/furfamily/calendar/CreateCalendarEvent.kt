@@ -90,7 +90,7 @@ fun CreateCalendarEvent(
                         readOnly = true,
                         value = selectedTitle,
                         onValueChange = {},
-                        label = { Text("Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        label = { Text("Title *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = TextFieldDefaults.textFieldColors(
                             focusedLabelColor = MaterialTheme.colorScheme.primary,
                             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -123,7 +123,7 @@ fun CreateCalendarEvent(
                         modifier = Modifier.padding(top = 8.dp),
                         value = customTitle,
                         onValueChange = { customTitle = it },
-                        label = { Text("Custom Title", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        label = { Text("Custom Title *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = TextFieldDefaults.textFieldColors(
                             focusedLabelColor = MaterialTheme.colorScheme.primary,
                             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -159,7 +159,7 @@ fun CreateCalendarEvent(
                         readOnly = true,
                         value = selectedLocationType,
                         onValueChange = {},
-                        label = { Text("Location Type", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        label = { Text("Location Type *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = TextFieldDefaults.textFieldColors(
                             focusedLabelColor = MaterialTheme.colorScheme.primary,
                             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -202,7 +202,7 @@ fun CreateCalendarEvent(
                     TextField(
                         value = location,
                         onValueChange = { location = it },
-                        label = { Text("Custom Location", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        label = { Text("Custom Location *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         colors = TextFieldDefaults.textFieldColors(
                             focusedLabelColor = MaterialTheme.colorScheme.primary,
                             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -232,7 +232,7 @@ fun CreateCalendarEvent(
                                 readOnly = true,
                                 value = location,
                                 onValueChange = {},
-                                label = { Text("Select Location", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                label = { Text("Select Location *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                                 colors = TextFieldDefaults.textFieldColors(
                                     focusedLabelColor = MaterialTheme.colorScheme.primary,
                                     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -280,7 +280,7 @@ fun CreateCalendarEvent(
                             readOnly = true,
                             value = selectedPet?.name ?: "Please choose one",
                             onValueChange = {},
-                            label = { Text("Pet Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            label = { Text("Pet Name *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                             colors = TextFieldDefaults.textFieldColors(
                                 focusedLabelColor = MaterialTheme.colorScheme.primary,
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,

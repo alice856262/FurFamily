@@ -3,10 +3,13 @@ package com.example.furfamily.nutrition
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,15 +38,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.furfamily.profile.Pet
+import com.example.furfamily.R
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Date
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.Surface
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,22 +146,89 @@ fun CreateFeedingRecord(
                     )
 
                     val formattedAmount = "%.1f".format(recommendedAmount)
-                    val additionalInfo = when (selectedFood.category) {
+                    val (portionText, iconResId, count, decimalPart) = when (selectedFood.category) {
                         "Dry Food" -> {
                             val cups = recommendedAmount / 120
-                            "(${String.format("%.1f", cups)} cups)"
+                            val wholeCups = cups.toInt()
+                            val decimal = cups - wholeCups
+                            Log.d("FeedingRecord", "Dry Food - cups: $cups, wholeCups: $wholeCups, decimal: $decimal")
+                            val text = if (decimal > 0) {
+                                "(%.1f cups)".format(cups)
+                            } else {
+                                "(${wholeCups} cups)"
+                            }
+                            Quad(text, R.drawable.pet_food_cup, wholeCups, decimal)
                         }
                         "Wet Food" -> {
                             val cans = recommendedAmount / selectedFood.size
-                            "(${String.format("%.1f", cans)} cans/pouches)"
+                            val wholeCans = cans.toInt()
+                            val decimal = cans - wholeCans
+                            Log.d("FeedingRecord", "Wet Food - cans: $cans, wholeCans: $wholeCans, decimal: $decimal")
+                            val text = if (decimal > 0) {
+                                "(%.1f cans)".format(cans)
+                            } else {
+                                "(${wholeCans} cans)"
+                            }
+                            Quad(text, R.drawable.pet_food_can, wholeCans, decimal)
                         }
-                        else -> ""
+                        else -> Quad("", null, 0, 0f)
                     }
 
                     Text(
-                        text = "Recommended Amount: ${formattedAmount} g/day $additionalInfo",
+                        text = "Daily Recommended Amount: ${formattedAmount} g/day",
                         style = MaterialTheme.typography.titleSmall
                     )
+                    if (portionText.isNotEmpty() && iconResId != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            // Show icons based on count
+                            repeat(count) {
+                                Image(
+                                    painter = painterResource(id = iconResId),
+                                    contentDescription = if (selectedFood.category == "Dry Food") "Food cup" else "Food can",
+                                    modifier = Modifier.size(16.dp),
+                                    contentScale = ContentScale.FillBounds
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                            }
+                            // If there's a decimal part, show proportional icon
+                            if (decimalPart > 0f) {
+                                Box(
+                                    modifier = Modifier.size(16.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = iconResId),
+                                        contentDescription = if (selectedFood.category == "Dry Food") 
+                                            "${(decimalPart * 100).toInt()}% food cup" 
+                                        else 
+                                            "${(decimalPart * 100).toInt()}% food can",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.FillBounds
+                                    )
+                                    // Overlay to cover the right portion
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width((16 * (1 - decimalPart)).dp)
+                                            .align(Alignment.TopEnd),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 0.dp,
+                                        shadowElevation = 0.dp
+                                    ) { }
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            } else {
+                                Log.d("FeedingRecord", "No decimal part to show")
+                            }
+                            Text(
+                                text = portionText,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -162,7 +237,7 @@ fun CreateFeedingRecord(
                 TextField(
                     value = amount.toString(),
                     onValueChange = { amount = it.toFloatOrNull() ?: 0.0F },
-                    label = { Text("Amount (grams)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    label = { Text("Amount (grams) *", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     colors = TextFieldDefaults.textFieldColors(
                         focusedLabelColor = MaterialTheme.colorScheme.primary,
                         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -355,3 +430,10 @@ fun DateTimePicker(label: String, dateTime: LocalDateTime, onDateTimeChanged: (L
         }
     }
 }
+
+data class Quad<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)

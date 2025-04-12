@@ -38,8 +38,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.furfamily.viewmodel.MapViewModel
-import com.example.furfamily.viewmodel.NutritionViewModel
-import com.example.furfamily.viewmodel.ProfileViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory

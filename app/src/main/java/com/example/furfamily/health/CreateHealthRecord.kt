@@ -329,7 +329,12 @@ fun CreateHealthRecord(
                         )
                         navController.popBackStack()
                     },
-                    enabled = selectedPet != null,
+                    enabled = selectedPet != null && (
+                        weight.isNotBlank() || temperature.isNotBlank() || 
+                        rbc.isNotBlank() || wbc.isNotBlank() || plt.isNotBlank() || 
+                        alb.isNotBlank() || ast.isNotBlank() || alt.isNotBlank() || 
+                        bun.isNotBlank() || scr.isNotBlank() || notes.isNotBlank()
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (recordId.isNullOrEmpty()) "Save Record" else "Save Changes")

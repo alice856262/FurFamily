@@ -53,6 +53,9 @@ class NutritionViewModel @Inject constructor(
     private val _feedingEvents = MutableLiveData<List<Feeding>>()
     val feedingEvents: LiveData<List<Feeding>> = _feedingEvents
 
+    private val _allFeedingEvents = MutableLiveData<List<Feeding>>()
+    val allFeedingEvents: LiveData<List<Feeding>> = _allFeedingEvents
+
     init {
         fetchLatestWeight()
         loadFoodList()
@@ -92,6 +95,7 @@ class NutritionViewModel @Inject constructor(
             .addOnSuccessListener { snapshot ->
                 if (snapshot.exists()) {
                     val food = snapshot.getValue(Food::class.java)
+                    food?.foodId = foodId
                     onResult(food)
                 } else {
                     onResult(null) // No food found
@@ -451,7 +455,7 @@ class NutritionViewModel @Inject constructor(
                             foodId = feedingMap["foodId"] as? String ?: "",
                             entryDate = Date(feedingMap["entryDate"] as? Long ?: System.currentTimeMillis()),
                             amount = (feedingMap["amount"] as? Number)?.toFloat() ?: 0.0F,
-                            mealTime = mealTime, // ✅ Correctly parsed LocalDateTime
+                            mealTime = mealTime,
                             mealType = feedingMap["mealType"] as? String ?: "",
                             notes = feedingMap["notes"] as? String ?: ""
                         )
@@ -474,6 +478,7 @@ class NutritionViewModel @Inject constructor(
         val feedingId = feedingRef.push().key ?: throw IllegalStateException("Failed to get Firebase key")
         // Create a Feeding object using the updated data class
         val feeding = Feeding(
+            feedingId = feedingId,
             petId = pet.petId,
             foodId = food.foodId,
             entryDate = Date(),
@@ -490,5 +495,120 @@ class NutritionViewModel @Inject constructor(
             .addOnFailureListener {
                 Log.e("FirebaseError", "Error saving feeding: ${it.message}")
             }
+    }
+
+    // Function to update an existing feeding record
+    fun updateFeeding(feeding: Feeding) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val feedingId = feeding.feedingId
+        if (feedingId.isBlank()) {
+            Log.e("ViewModel", "Invalid feeding ID")
+            return
+        }
+
+        val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$userId/$feedingId")
+        feedingRef.setValue(feeding)
+            .addOnSuccessListener {
+                Log.d("Firebase", "Feeding updated successfully")
+                loadFeedingEventsForDate(feeding.mealTime.toLocalDate())
+            }
+            .addOnFailureListener { exception ->
+                Log.e("FirebaseError", "Error updating feeding: ${exception.message}")
+            }
+    }
+
+    // Function to delete a feeding record
+    fun deleteFeeding(feeding: Feeding) {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val feedingId = feeding.feedingId
+        if (feedingId.isBlank()) {
+            Log.e("ViewModel", "Invalid feeding ID")
+            return
+        }
+
+        val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$userId/$feedingId")
+        feedingRef.removeValue()
+            .addOnSuccessListener {
+                Log.d("Firebase", "Feeding deleted successfully")
+                loadFeedingEventsForDate(feeding.mealTime.toLocalDate())
+                // Also reload all feeding events
+                loadAllFeedingEvents()
+            }
+            .addOnFailureListener { exception ->
+                Log.e("FirebaseError", "Error deleting feeding: ${exception.message}")
+            }
+    }
+
+    // Function to load all feeding records for the current user
+    fun loadAllFeedingEvents() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val feedingRef = FirebaseDatabase.getInstance().getReference("feedings/$uid")
+
+        feedingRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val allFeedings = mutableListOf<Feeding>()
+
+                for (childSnapshot in snapshot.children) {
+                    val feedingMap = childSnapshot.value as? Map<*, *> ?: continue
+                    val feedingId = childSnapshot.key ?: continue
+
+                    val mealTime = when (val mealTimeData = feedingMap["mealTime"]) {
+                        is Map<*, *> -> { // If stored as a Map, reconstruct LocalDateTime
+                            try {
+                                LocalDateTime.of(
+                                    (mealTimeData["year"] as? Number)?.toInt() ?: 2000,
+                                    (mealTimeData["monthValue"] as? Number)?.toInt() ?: 1,
+                                    (mealTimeData["dayOfMonth"] as? Number)?.toInt() ?: 1,
+                                    (mealTimeData["hour"] as? Number)?.toInt() ?: 0,
+                                    (mealTimeData["minute"] as? Number)?.toInt() ?: 0,
+                                    (mealTimeData["second"] as? Number)?.toInt() ?: 0
+                                )
+                            } catch (e: Exception) {
+                                Log.e("Firebase", "Error parsing mealTime Map: ${e.message}")
+                                LocalDateTime.of(2000, 1, 1, 0, 0) // Default value
+                            }
+                        }
+                        is Number -> { // If stored as a timestamp, convert it
+                            Instant.ofEpochMilli(mealTimeData.toLong())
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDateTime()
+                        }
+                        is String -> { // If stored as a string (possible edge case)
+                            try {
+                                LocalDateTime.parse(mealTimeData)
+                            } catch (e: Exception) {
+                                Log.e("Firebase", "Error parsing mealTime String: $mealTimeData")
+                                LocalDateTime.of(2000, 1, 1, 0, 0) // Default
+                            }
+                        }
+                        else -> {
+                            Log.e("Firebase", "Unknown mealTime format: $mealTimeData")
+                            LocalDateTime.of(2000, 1, 1, 0, 0) // Default
+                        }
+                    }
+
+                    val feeding = Feeding(
+                        feedingId = feedingId,
+                        petId = feedingMap["petId"] as? String ?: "",
+                        foodId = feedingMap["foodId"] as? String ?: "",
+                        entryDate = Date(feedingMap["entryDate"] as? Long ?: System.currentTimeMillis()),
+                        amount = (feedingMap["amount"] as? Number)?.toFloat() ?: 0.0F,
+                        mealTime = mealTime,
+                        mealType = feedingMap["mealType"] as? String ?: "",
+                        notes = feedingMap["notes"] as? String ?: ""
+                    )
+
+                    allFeedings.add(feeding)
+                }
+                
+                // Sort feedings by meal time (newest first)
+                allFeedings.sortByDescending { it.mealTime }
+                _allFeedingEvents.postValue(allFeedings)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("FirebaseError", "Failed to load all feeding events: ${error.message}")
+            }
+        })
     }
 }

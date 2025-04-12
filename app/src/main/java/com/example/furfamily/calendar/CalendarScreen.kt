@@ -3,6 +3,7 @@ package com.example.furfamily.calendar
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.DropdownMenuItem
@@ -60,6 +62,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.unit.times
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import com.example.furfamily.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -200,7 +205,20 @@ fun CalendarScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Event Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+                title = { 
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.calendar),
+                            contentDescription = "Event",
+                            modifier = Modifier
+                                .size(40.dp)
+                                .padding(end = 10.dp)
+                        )
+                        Text("Event Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                },
                 actions = {
                     IconButton(onClick = { 
                         eventToEdit = null
@@ -431,7 +449,7 @@ fun CalendarScreen() {
                 showDeleteConfirmation = false
                 eventToDelete = null
             },
-            title = { Text("Delete Event: ${eventToDelete!!.title}") },
+            title = { Text("Delete: ${eventToDelete!!.title}") },
             text = { Text("Are you sure you want to delete this event?") },
             confirmButton = {
                 Row(
