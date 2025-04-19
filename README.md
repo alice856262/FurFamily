@@ -3,37 +3,81 @@
 
 > FurFamily is a comprehensive Android application designed to help pet owners manage their pets' health, activities, and daily routines. The app provides features for tracking pet weight, medication schedules, and other important pet care information.
 
-## 🎯 Features
+## 🎯 App Features and User Guide
+### Getting Started
+1. Create an account using email/password or use Google Sign-In
+<table>
+<tr>
+<td><img src="docs/screenshots/login.png" alt="Login Screen" width="300"/></td>
+<td><img src="docs/screenshots/registration.png" alt="Registration Screen" width="300"/></td>
+</tr>
+</table>
+
+2. Setup pet profile by clicking "Add New Pet"
+<table>
+<tr>
+<td><img src="docs/screenshots/add_pet.png" alt="Add New Pet" width="300"/></td>
+<td><img src="docs/screenshots/profile.png" alt="Profile Screen" width="300"/></td>
+</tr>
+</table>
+
 ### 📅 Calendar & Events
-- Create and manage pet-related events
-- Custom event categories
+- View and manage all pet-related events in one place
+- Search events by keyword or filter feeding records by pet
 - Integrate Google Calendar events (if use Google sign in)
+<table>
+<tr>
+<td><img src="docs/screenshots/calendar.png" alt="Calendar Screen" width="300"/></td>
+<td><img src="docs/screenshots/create_event.png" alt="Create Event" width="300"/></td>
+<td><img src="docs/screenshots/search_event.png" alt="Search Event" width="300"/></td>
+</tr>
+</table>
 
 ### 🏥 Health Dashboard
-- Weight monitoring
-- Calorie and water intake tracking
-- Create and manage health reports
+- Track daily calorie and water intake
+- Monitor weight trends with interactive charts
+- Generate and manage health reports for vet visits
+<table>
+<tr>
+<td><img src="docs/screenshots/health_dashboard.png" alt="Health Screen" width="300"/></td>
+<td><img src="docs/screenshots/create_health_record.png" alt="Create Health Record" width="300"/></td>
+</tr>
+</table>
 
 ### 🍽️ Food & Feeding
-- Food label information extraction
-- Feeding schedule management
-- Portion size recommendations by pet
+- Scan food labels for nutritional information
+- Set up feeding schedules
+- Get portion recommendations based on pet's needs
+- View and manage feeding records
+<table>
+<tr>
+<td><img src="docs/screenshots/food_feeding.png" alt="Food Feeding" width="300"/></td>
+<td><img src="docs/screenshots/create_food.png" alt="Create Food" width="300"/></td>
+<td><img src="docs/screenshots/add_feeding.png" alt="Add Feeding" width="300"/></td>
+</tr>
+</table>
 
 ### 🗺️ Map & Location
-- Find and navigate all pet services
-- Create and manage personalised tags
-- Filter location tags by category
+- Find and navigate all kinds of pet services
+- Save favorite locations with custom tags
+- Filter services by category (vet, pet store, park, etc.)
+<table>
+<tr>
+<td><img src="docs/screenshots/map.png" alt="Map Screen" width="300"/></td>
+<td><img src="docs/screenshots/add_tag.png" alt="Add Tag" width="300"/></td>
+</tr>
+</table>
 
-### 👤 Profile & Smart Assistant
+### 🤖 Profile & Smart Care Assistant
 - Create and manage pet profile
-- Switch between multiple pets
-- Smart care assistant powered by OpenAI advice
-- User info updates
-
-### 🔐 Authentication
-- Authentication by email/password or Google
-- Password reset functionality
-- Privacy controls
+- Get AI-powered care advice for each pet
+- User basic info updates
+<table>
+<tr>
+<td><img src="docs/screenshots/profile.png" alt="Profile Screen" width="300"/></td>
+<td><img src="docs/screenshots/smart_care_assistant.png" alt="Smart Care Assistant" width="300"/></td>
+</tr>
+</table>
 
 ## 🛠 Tech Stack
 - **Frontend**
