@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +40,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -95,160 +99,190 @@ fun LoginScreen(
 
     if (showResetPasswordDialog) {
         PasswordResetDialog(
-            initialEmail = email,  // Pass the current email state
+            initialEmail = email,
             onDismiss = { showResetPasswordDialog = false },
             authViewModel = authViewModel
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .background(MaterialTheme.colorScheme.background), // Set the background color
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Text(
-            text = "Login to Your Account",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 32.dp)
+        // Background Image
+        Image(
+            painter = painterResource(id = R.drawable.background),
+            contentDescription = "Background",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
         )
 
-        // Email Input Field
-        TextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            colors = TextFieldDefaults.textFieldColors(
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                containerColor = MaterialTheme.colorScheme.surface,
-                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
+        // Semi-transparent overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.7f))
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Password Input Field
-        TextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                val icon = if (isPasswordVisible) painterResource(id = R.drawable.eye) else painterResource(id = R.drawable.hidden)
-                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                    Icon(
-                        painter = icon,
-                        contentDescription = "Show or hide password",
-                        modifier = Modifier.height(22.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = TextFieldDefaults.textFieldColors(
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                containerColor = MaterialTheme.colorScheme.surface,
-                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Error Message
-        if (showSnackbar.value && loginError.isNotEmpty()) {
-            Snackbar(
-                modifier = Modifier
-                    .padding(top = 16.dp, bottom = 16.dp)
-                    .background(MaterialTheme.colorScheme.error),
-                action = {
-                    TextButton(onClick = {
-                        showSnackbar.value = false
-                        loginError = ""
-                    }) {
-                        Text("DISMISS", color = MaterialTheme.colorScheme.onError)
-                    }
-                }
+        // Content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(loginError, color = MaterialTheme.colorScheme.onError)
+                Text(
+                    text = "Login Here",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Image(
+                    painter = painterResource(id = R.drawable.paws),
+                    contentDescription = "Paws Icon",
+                    modifier = Modifier.size(40.dp)
+                )
             }
-        } else {
-            Spacer(modifier = Modifier.height(40.dp))
-        }
+            Spacer(modifier = Modifier.height(32.dp))
 
-        // Login Button
-        Button(
-            onClick = {
-                // Input validation before attempting login
-                when {
-                    email.isBlank() && password.isBlank() -> {
-                        loginError = "Please enter both email and password"
+            // Email Input Field
+            TextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                colors = TextFieldDefaults.textFieldColors(
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Password Input Field
+            TextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    val icon = if (isPasswordVisible) painterResource(id = R.drawable.eye) else painterResource(id = R.drawable.hidden)
+                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                        Icon(
+                            painter = icon,
+                            contentDescription = "Show or hide password",
+                            modifier = Modifier.height(22.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    email.isBlank() -> {
-                        loginError = "Please enter your email"
+                },
+                colors = TextFieldDefaults.textFieldColors(
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Error Message
+            if (showSnackbar.value && loginError.isNotEmpty()) {
+                Snackbar(
+                    modifier = Modifier
+                        .padding(top = 16.dp, bottom = 16.dp)
+                        .background(MaterialTheme.colorScheme.error),
+                    action = {
+                        TextButton(onClick = {
+                            showSnackbar.value = false
+                            loginError = ""
+                        }) {
+                            Text("DISMISS", color = MaterialTheme.colorScheme.onError)
+                        }
                     }
-                    password.isBlank() -> {
-                        loginError = "Please enter your password"
-                    }
-                    else -> {
-                        loginWithEmailPassword(email, password) { error -> loginError = error }
-                    }
+                ) {
+                    Text(loginError, color = MaterialTheme.colorScheme.onError)
                 }
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary, // Use containerColor for the background
-                contentColor = MaterialTheme.colorScheme.onPrimary // Use contentColor for the text color
-            ),
-            modifier = Modifier
-                .height(46.dp)
-                .width(190.dp)
-        ) {
-            Text("Login")
-        }
+            } else {
+                Spacer(modifier = Modifier.height(40.dp))
+            }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            // Login Button
+            Button(
+                onClick = {
+                    when {
+                        email.isBlank() && password.isBlank() -> {
+                            loginError = "Please enter both email and password"
+                        }
+                        email.isBlank() -> {
+                            loginError = "Please enter your email"
+                        }
+                        password.isBlank() -> {
+                            loginError = "Please enter your password"
+                        }
+                        else -> {
+                            loginWithEmailPassword(email, password) { error -> loginError = error }
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                modifier = Modifier
+                    .height(46.dp)
+                    .width(190.dp)
+            ) {
+                Text("Login", style = MaterialTheme.typography.titleMedium)
+            }
 
-        // Google Sign-In Button
-        Button(
-            onClick = { authViewModel.signInWithGoogle() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surface // Use containerColor for the background
-            ),
-            contentPadding = PaddingValues(0.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.android_light_rd),
-                contentDescription = "Sign in with Google",
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Google Sign-In Button
+            Button(
+                onClick = { authViewModel.signInWithGoogle() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Forgot Password
-        TextButton(onClick = { showResetPasswordDialog = true }) {
-            Text("Forgot Password?", color = MaterialTheme.colorScheme.primary)
-        }
-
-        Row(
-            modifier = Modifier.padding(top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Don't have an account? ", color = MaterialTheme.colorScheme.onBackground)
-            TextButton(
-                onClick = { navController.navigate(Routes.Registration.value) }
+                    .padding(horizontal = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = Color.Transparent
+                ),
+                contentPadding = PaddingValues(0.dp)
             ) {
-                Text("Register here!", color = MaterialTheme.colorScheme.primary)
+                Image(
+                    painter = painterResource(id = R.drawable.android_light_rd),
+                    contentDescription = "Sign in with Google",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Forgot Password
+            TextButton(onClick = { showResetPasswordDialog = true }) {
+                Text("Forgot Password?", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+            }
+
+            Row(
+                modifier = Modifier.padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Don't have an account? ", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleMedium)
+                TextButton(
+                    onClick = { navController.navigate(Routes.Registration.value) }
+                ) {
+                    Text("Register here!", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                }
             }
         }
     }

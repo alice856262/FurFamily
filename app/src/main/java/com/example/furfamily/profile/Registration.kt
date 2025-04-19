@@ -43,7 +43,6 @@ import androidx.navigation.NavController
 import com.example.furfamily.R
 import com.example.furfamily.Routes
 import com.example.furfamily.viewmodel.ProfileViewModel
-import com.example.furfamily.viewmodels.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -58,7 +57,6 @@ fun RegistrationScreen(
     createUserWithEmailPassword: (String, String, String, String, String, String, Date) -> Unit,
     navController: NavController
 ) {
-    val authViewModel: AuthViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
 
     var firstName by rememberSaveable { mutableStateOf("") }
@@ -253,14 +251,14 @@ fun RegistrationScreen(
             },
             enabled = isRegFormValid,  // Button is disabled if form is not valid
             modifier = Modifier.height(46.dp).width(190.dp)
-        ) { Text("Register") }
+        ) { Text("Register", style = MaterialTheme.typography.titleMedium) }
         Row(
             modifier = Modifier.padding(top = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Already have an account? ")
             TextButton(onClick = { navController.navigate(Routes.Login.value) }
-            ) { Text("Login here!") }
+            ) { Text("Login here!", style = MaterialTheme.typography.titleMedium) }
         }
     }
 }
