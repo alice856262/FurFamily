@@ -293,6 +293,7 @@ class ProfileViewModel @Inject constructor(
                     Type: ${pet.type}
                     Breed: ${pet.breed}
                     Sex: ${pet.selectedSex}
+                    Allergy: ${pet.allergy}
                     Birth Date: ${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(pet.birthDate)}
                     
                     Recent Feeding Records:

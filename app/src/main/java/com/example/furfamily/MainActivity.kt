@@ -3,6 +3,7 @@ package com.example.furfamily
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,7 +39,9 @@ class MainActivity : ComponentActivity() {
 
         // Initialize Places API
         if (!Places.isInitialized()) {
-            Places.initialize(applicationContext, getString(R.string.google_maps_key))
+            val apiKey = BuildConfig.GOOGLE_MAPS_API_KEY
+            Log.d("MainActivity", "Google Maps API Key: $apiKey")
+            Places.initialize(applicationContext, apiKey)
         }
 
         // Set the status bar color dynamically

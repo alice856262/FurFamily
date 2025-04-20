@@ -838,22 +838,26 @@ fun HealthScreen(userId: String, navController: NavController) {
             title = { Text("Delete Health Record") },
             text = { Text("Are you sure you want to delete this health record? This action cannot be undone.") },
             confirmButton = {
-                TextButton(
-                    onClick = { handleDeleteRecord(recordToDelete!!.recordId) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Delete")
+                    OutlinedButton(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            recordToDelete = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = { handleDeleteRecord(recordToDelete!!.recordId) }
+                    ) {
+                        Text("Delete")
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        recordToDelete = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         )
     }
 }

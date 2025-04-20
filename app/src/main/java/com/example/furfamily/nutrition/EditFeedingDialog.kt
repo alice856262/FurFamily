@@ -1,6 +1,8 @@
 package com.example.furfamily.nutrition
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -102,34 +104,38 @@ fun EditFeedingDialog(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        try {
-                            val amountFloat = amount.toFloatOrNull() ?: 0f
-                            val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-                            val parsedDateTime = LocalDateTime.parse(mealTime, dateTimeFormatter)
-                            
-                            val updatedFeeding = feeding.copy(
-                                amount = amountFloat,
-                                mealTime = parsedDateTime,
-                                mealType = mealType,
-                                notes = notes
-                            )
-                            
-                            onSave(updatedFeeding)
-                        } catch (e: Exception) {
-                            // Handle parsing errors
-                        }
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Save")
+                    OutlinedButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            try {
+                                val amountFloat = amount.toFloatOrNull() ?: 0f
+                                val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                                val parsedDateTime = LocalDateTime.parse(mealTime, dateTimeFormatter)
+
+                                val updatedFeeding = feeding.copy(
+                                    amount = amountFloat,
+                                    mealTime = parsedDateTime,
+                                    mealType = mealType,
+                                    notes = notes
+                                )
+
+                                onSave(updatedFeeding)
+                            } catch (e: Exception) {
+                                // Handle parsing errors
+                            }
+                        }
+                    ) {
+                        Text("Save")
+                    }
                 }
             },
-            dismissButton = {
-                OutlinedButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         )
     }
 } 

@@ -51,6 +51,7 @@ fun EditPetScreen(navController: NavController, userId: String, petId: String) {
     var selectedSex by remember { mutableStateOf(selectedPet?.selectedSex ?: "Please choose one") }
     val sexOptions = listOf("Neutered male", "Spayed female", "Intact male", "Intact female")
     var isSexExpanded by remember { mutableStateOf(false) }
+    var allergy by remember { mutableStateOf(selectedPet?.allergy ?: "") }
     var birthDate by remember { mutableStateOf(selectedPet?.birthDate ?: Date()) }
     val datePickerState = rememberDatePickerState(birthDate.time)
     var showDatePicker by remember { mutableStateOf(false) }
@@ -63,6 +64,7 @@ fun EditPetScreen(navController: NavController, userId: String, petId: String) {
             type = it.type
             breed = it.breed
             selectedSex = it.selectedSex
+            allergy = it.allergy
             birthDate = it.birthDate
             datePickerState.selectedDateMillis = it.birthDate.time
         }
@@ -247,6 +249,22 @@ fun EditPetScreen(navController: NavController, userId: String, petId: String) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Pet Allergy Note
+                TextField(
+                    value = allergy,
+                    onValueChange = { allergy = it },
+                    label = { Text("Allergy Note", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Pet Birth Date
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -270,13 +288,17 @@ fun EditPetScreen(navController: NavController, userId: String, petId: String) {
                     DatePickerDialog(
                         onDismissRequest = { showDatePicker = false },
                         confirmButton = {
-                            TextButton(onClick = {
+                            Button(onClick = {
                                 showDatePicker = false
                                 birthDate = Date(datePickerState.selectedDateMillis ?: birthDate.time)
                             }) { Text("OK") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                            OutlinedButton(onClick = {
+                                showDatePicker = false
+                            }) {
+                                Text("Cancel")
+                            }
                         }
                     ) {
                         DatePicker(state = datePickerState)
@@ -294,6 +316,7 @@ fun EditPetScreen(navController: NavController, userId: String, petId: String) {
                                 type = type,
                                 breed = breed,
                                 selectedSex = selectedSex,
+                                allergy = allergy,
                                 birthDate = birthDate,
                                 profileImageUrl = profileImageUrl
                             )

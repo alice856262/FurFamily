@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.Divider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -31,8 +30,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,6 +67,8 @@ fun CreateFeedingRecord(
     var isMealExpanded by remember { mutableStateOf(false) }
     val mealOptions = listOf("Breakfast", "Lunch", "Snack", "Dinner")
     var notes by remember { mutableStateOf("") }
+    var showAllergyWarning by remember { mutableStateOf(false) }
+    var foundAllergens by remember { mutableStateOf(listOf<String>()) }
 
     // Lifestyle options
     val lifestyleOptions = listOf("Normal", "Inactive Lifestyle", "Obese/Weight Loss")
@@ -76,6 +77,51 @@ fun CreateFeedingRecord(
     // Gestation and lactation options
     val gestationOptions = listOf("No", "Gestation", "Lactation", "Gestation and Lactation")
     var selectedGestation by remember { mutableStateOf("No") }
+
+    // Check for allergies when the composable is first created
+    LaunchedEffect(selectedPet, selectedFood) {
+        val allergens = checkForAllergies(selectedPet.allergy, selectedFood.ingredient)
+        if (allergens.isNotEmpty()) {
+            foundAllergens = allergens
+            showAllergyWarning = true
+        }
+    }
+
+    // Allergy Warning Dialog
+    if (showAllergyWarning) {
+        AlertDialog(
+            onDismissRequest = { showAllergyWarning = false },
+            title = { Text("Allergy Warning") },
+            text = {
+                Column {
+                    Text("This food contains ingredients that ${selectedPet.name} is allergic to:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    foundAllergens.forEach { allergen ->
+                        Text("• $allergen")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Please consider choosing a different food or consult with your veterinarian.")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    OutlinedButton(onClick = {
+                        showAllergyWarning = false
+                        onDismiss()
+                    }) {
+                        Text("Cancel")
+                    }
+                    Button(onClick = { showAllergyWarning = false }) {
+                        Text("I Understand")
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -437,3 +483,17 @@ data class Quad<A, B, C, D>(
     val third: C,
     val fourth: D
 )
+
+// Function to check for allergies
+private fun checkForAllergies(petAllergies: String, foodIngredients: String): List<String> {
+    if (petAllergies.isBlank() || foodIngredients.isBlank()) return emptyList()
+    
+    val allergens = petAllergies.split(",").map { it.trim().lowercase() }
+    val ingredients = foodIngredients.split(",").map { it.trim().lowercase() }
+    
+    return allergens.filter { allergen ->
+        ingredients.any { ingredient ->
+            ingredient.contains(allergen) || allergen.contains(ingredient)
+        }
+    }
+}

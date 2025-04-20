@@ -43,7 +43,7 @@ android {
             secrets.load(FileInputStream(secretsFile))
         }
 
-        // Add API key to BuildConfig
+        // Add API keys to BuildConfig
         buildConfigField("String", "OPENAI_API_KEY", "\"${secrets["OPENAI_API_KEY"]}\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secrets["GOOGLE_MAPS_API_KEY"]}\"")
 

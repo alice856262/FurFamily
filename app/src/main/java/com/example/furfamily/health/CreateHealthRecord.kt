@@ -205,7 +205,7 @@ fun CreateHealthRecord(
                     DatePickerDialog(
                         onDismissRequest = { showDatePicker = false },
                         confirmButton = {
-                            TextButton(
+                            Button(
                                 onClick = {
                                     datePickerState.selectedDateMillis?.let {
                                         entryDate = Date(it)
@@ -217,7 +217,7 @@ fun CreateHealthRecord(
                             }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) {
+                            OutlinedButton(onClick = { showDatePicker = false }) {
                                 Text("Cancel")
                             }
                         }

@@ -8,6 +8,7 @@ data class Pet(
     val type: String = "",
     val breed: String = "",
     val selectedSex: String = "",
+    val allergy: String = "",
     val birthDate: Date = Date(),
     var profileImageUrl: String = ""
 )

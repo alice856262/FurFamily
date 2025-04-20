@@ -45,6 +45,7 @@ fun AddPetScreen(navController: NavController, userId: String) {
     var selectedSex by remember { mutableStateOf("Please choose one") }
     val sexOptions = listOf("Neutered male", "Spayed female", "Intact male", "Intact female")
     var isSexExpanded by remember { mutableStateOf(false) }
+    var allergy by remember { mutableStateOf("") }
     var birthDate by remember { mutableStateOf(Date()) }
     val datePickerState = rememberDatePickerState(birthDate.time)
     var showDatePicker by remember { mutableStateOf(false) }
@@ -226,6 +227,22 @@ fun AddPetScreen(navController: NavController, userId: String) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Pet Allergy Note
+                TextField(
+                    value = allergy,
+                    onValueChange = { allergy = it },
+                    label = { Text("Allergy Note", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Pet Birth Date
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -249,13 +266,17 @@ fun AddPetScreen(navController: NavController, userId: String) {
                     DatePickerDialog(
                         onDismissRequest = { showDatePicker = false },
                         confirmButton = {
-                            TextButton(onClick = {
+                            Button(onClick = {
                                 showDatePicker = false
                                 birthDate = Date(datePickerState.selectedDateMillis ?: birthDate.time)
                             }) { Text("OK") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                            OutlinedButton(onClick = {
+                                showDatePicker = false
+                            }) {
+                                Text("Cancel")
+                            }
                         }
                     ) {
                         DatePicker(state = datePickerState)
@@ -273,6 +294,7 @@ fun AddPetScreen(navController: NavController, userId: String) {
                                 type = type,
                                 breed = breed,
                                 selectedSex = selectedSex,
+                                allergy = allergy,
                                 birthDate = birthDate,
                                 profileImageUrl = profileImageUrl
                             )
