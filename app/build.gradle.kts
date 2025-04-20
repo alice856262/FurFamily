@@ -45,6 +45,10 @@ android {
 
         // Add API key to BuildConfig
         buildConfigField("String", "OPENAI_API_KEY", "\"${secrets["OPENAI_API_KEY"]}\"")
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secrets["GOOGLE_MAPS_API_KEY"]}\"")
+
+        // Add API key to manifest placeholders
+        manifestPlaceholders["googleMapsApiKey"] = secrets["GOOGLE_MAPS_API_KEY"] as String
     }
 
     buildTypes {

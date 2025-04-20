@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">FurFamily</string>
     <string name="default_web_client_id">your-client-id-here</string>
-    <string name="google_maps_key">AIzaSyDRXDCgt6thKoDBE8gr7XB92JjEnTMF7hQ</string>
+    <string name="google_maps_key">${googleMapsApiKey}</string>
 </resources>
